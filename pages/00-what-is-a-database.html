@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>What is a database?</title>
+
+        <!-- Bootstrap Core CSS -->
+        <link href="/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="/theme/css/code_blocks/github_jekyll.css" rel="stylesheet">
+
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="">
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/"></a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-color: black">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>What is a database?</h1>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <article>
+        <h1>What is a database?</h1>
+<p>Database is usually short for Database Management System, though people also use database to refer to a specific set of data. From now on, when I say database I mean Database Management System, for example, something like postgresql.</p>
+<p>So, what is it?</p>
+<p>Let's start with what <a href="https://en.wikipedia.org/wiki/Database">the wiki</a> says:</p>
+<blockquote>
+<p>[A database is an] application that interacts with the user, other applications, and the database itself to capture and analyze data. A general-purpose DBMS is designed to allow the definition, creation, querying, update, and administration of databases</p>
+</blockquote>
+<p>From that we already know a few things it has to do: deal with user input and output, have ways for other applications to interact with it, and well, manage the data.</p>
+<h2>Data storage</h2>
+<p>One of the jobs of the database is to ensure data persistence. Data should not be lost if the database stops running for whatever reason. A good database will preserve the data even in the case that itself crashes, or the computer it is running on is turned off without exiting the database gracefully. More concretely, the database ensures data is stored in files on a hard drive.</p>
+<p>Since reading and writing from disk is <a href="https://people.eecs.berkeley.edu/~rcs/research/interactive_latency.html">a lot slower</a> than reading and writing to memory and a lot more data fits on disk than in memory, the database will have to manage which parts of the data are kept in memory and what to do when a required part is not there.</p>
+<p>Furthermore, a representation of the data that is convenient for some tasks is not convenient for other tasks. The prime example here is that on disk, the data should be compressed as much as possible to save time and space, but the user should be presented the data in human-readable format. So, the database will need to manage the various representations along with the metadata (data about the data) that it needs in order to achieve those representations.</p>
+<h2>User interaction</h2>
+<p>The database should make available a set of human-friendly commands for the user to store and retrieve data in the database. This implies that the database needs to be able to parse user input and offer useful error messages when said input is formatted incorrectly. Things can get complciated quickly here deppending on how flexible the syntax of the database language is.</p>
+<p>Besides storing and retrieving a single piece of data, it will be likely that the user needs to query the database to see what pieces of data match a given condition. This will add complexity to both the database language and to the data storage: we need to have syntax to describe the operations concisely and we also need to implement the operations efficiently.</p>
+<p>An important, though not strictly necessary, feature of a database is to allow the user to describe the logical structure of the data ahead of time. This logical structure is called the schema of the data. The database should let the user specify what fields a records in the database have and also let the user have different types of records. For example, instead of simply letting the user store things like:</p>
+<div class="highlight"><pre><span></span>{client_name:Paco Sanchez, account_number:1}
+{account_number:1, balance:1000}
+{client_name:John Smith, account_number:2}
+{account_number:2 balance:500}
+{client_name:, account_number:3, country:Switzerland}
+</pre></div>
+
+
+<p>the database should let the user describe the fact that there are two tables, one for clients and another for accounts, and what fields each is expected to have. This could go further: the user should be able to specify whether a field is optional, and what type of data goes in it.</p>
+<p>One way to accomplish this would be to have a language used to describe the data schema in addition to the language used to perform operations on the database. In practice, though, it is common for the same language to serve both purposes.</p>
+<h2>Interaction with other applications</h2>
+<p>In addition to interacting with a human user, the database usually needs to interact with other pieces of software, for example a web server or a web application. In fact, we can think of user interaction as a special case of this: the database interacts with a piece of software whose job is to interpret user input, send it to the database, and show the output to the user. Such a program would be called a client, in which case our database becomes a database server.</p>
+<p>One natural thing to want from a database server is that it supports multiple clients simultaneously. In fact, that's what happens in the databases that web applications use. This introduces a new kind of complexity: the database has to be able to cope with things happening simultaneously. What if client 1 says that the value of the <code>balance</code> in the record <code>account_number:1</code> should be <code>500</code> and another that it should be <code>1000</code> and both clients made their statements at the same time. Not only that, but what if the database is bogged down writting some big record that one client sent when another client wants to read a different record? All these are problems of concurrency and real-world databases deal with them.</p>
+<p>So, interacting with other applications brings about two more things for our database to do: manage client connections and deal with concurrency.</p>
+<h2>Transactions</h2>
+<p>Suppose we wanted to capture this event: a user moves $50 from one account to another. We have to update two records in our database: decrease the balance in one account by 50 and increase it in another by 50. To the user this is really one operation <code>move $50 from this account to that one</code> but to our database it is two operations, an update for the records of the accounts involved. What if the database crashes right after the first operation is complete? $50 goes missing! Similarly, if only the second operation succeeds, then $50 appear out of thin air.</p>
+<p>A good database should offer a way of dealing with this — a way to say "the following operations are all or nothing". The fancy name for that abstraction is <a href="https://en.wikipedia.org/wiki/ACID">ACID transactions</a> and a good database supports them.</p>
+<h2>Replication, availability, and consistency</h2>
+<p>Since users often want the data to be safe and always available, databases provide several mechanisms for replication. The simplest version of this is a program that connects to the database and generates a single file with all the data, ie a backup. Besides those, databases often have automatic replication: copies of each piece of data stored in the database are made automatically to other instances of the database running elsewhere. This is often done with two aims. First, letting the user get their application back to operational quickly in case a the computer running the database crashes or becomes unavailable for some reason (e.g. a problem with the network). Replication adds availability (and complexity!).</p>
+<p>As soon as we introduce the notion of having many instances of the database, we have to deal with the possibility that instances may be inconsistent with one another. The various strategies employed to deal with these are called consensus algorithms, and again, most modern database systems offer these features.</p>
+<h2>Anything Else?!</h2>
+<p>Fortunately, no, that's about it. But as you can imagine, each of these features of the database can be very complex. While a competent programmer could write a database that does some version of each of the things above in a few weeks, in a real system (like postgres) tens to hundreds of programmer-years have gone into each component.</p>
+<h2>Further Reading</h2>
+<p>To write this I either read or skimmed the following, they may be useful to you, too:</p>
+<ul>
+<li><a href="http://infolab.stanford.edu/~ullman/fcdb/ch1.pdf">Chapter 1</a> of <em>Database Systems: The Complete Book</em> by Garcia-Molina, Ullman, and Widom</li>
+<li>The intro chapter of the red database book</li>
+<li>Wiki links and others</li>
+<li>the design doc of cockroach</li>
+</ul>
+<p>I didn't read these, but I bookmarked them in the process of writing this:</p>
+<ul>
+<li>the red book</li>
+<li>the postgres paper</li>
+</ul>
+    </article>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                    </ul>
+<p class="copyright text-muted">
+    Blog powered by <a href="http://getpelican.com">Pelican</a>,
+    which takes great advantage of <a href="http://python.org">Python</a>.
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="/theme/js/clean-blog.min.js"></script>
+
+</body>
+
+</html>

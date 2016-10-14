@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Scratchcode Academy - Databases Tutorial</title><link href="https://scratchcode.github.io/databases/" rel="alternate"></link><link href="https://scratchcode.github.io/databases/feeds/all.atom.xml" rel="self"></link><id>https://scratchcode.github.io/databases/</id><updated>2010-12-03T10:20:00-05:00</updated><entry><title>My First Review</title><link href="https://scratchcode.github.io/databases/my-first-review.html" rel="alternate"></link><published>2010-12-03T10:20:00-05:00</published><updated>2010-12-03T10:20:00-05:00</updated><author><name>Rodrigo Guzman</name></author><id>tag:scratchcode.github.io,2010-12-03:databases/my-first-review.html</id><summary type="html">&lt;h1&gt;Hello world!&lt;/h1&gt;
-&lt;h2&gt;Section&lt;/h2&gt;
-&lt;p&gt;This is a test page.&lt;/p&gt;
-&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span&gt;&lt;/span&gt;&lt;span class="k"&gt;def&lt;/span&gt; &lt;span class="nf"&gt;foo&lt;/span&gt;&lt;span class="p"&gt;():&lt;/span&gt;
-    &lt;span class="k"&gt;print&lt;/span&gt; &lt;span class="s1"&gt;&amp;#39;Hello world!&amp;#39;&lt;/span&gt;
-&lt;/pre&gt;&lt;/div&gt;</summary></entry></feed>
