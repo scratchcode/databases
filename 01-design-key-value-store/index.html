@@ -19,6 +19,8 @@
         <!-- Code highlight color scheme -->
             <link href="https://scratchcode.github.io/databases/theme/css/code_blocks/github_jekyll.css" rel="stylesheet">
 
+            <!-- CSS specified by the user -->
+            <link href="https://scratchcode.github.io/databases/css/overrides.css" rel="stylesheet">
 
         <!-- Custom Fonts -->
         <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
@@ -81,19 +83,18 @@
         <div class="row">
             <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
     <article>
-        <h1>Designing a simple key-value store</h1>
-<p>Alright, let's get coding!</p>
+        <p>Alright, let's get coding!</p>
 <p>Psych. We have to figure out what to code first.</p>
 <p>What's the simplest thing we can make that could pass for a database?</p>
 <p>Let it be a single-user (i.e. no concurrency), append-only (we never actually delete data from files), key-value database (the simplest logical structure for the data) without transaction support.</p>
 <p>Our database will only have 3 operations available to the user: set a key to a value, get the value associated with a key, and delete a key and its associated value. This will make the query language and the internal workings of the database simple.</p>
 <p>Note that offering a delete operation to the user is not the same as actually deleting the underlying data. Instead, our database can keep track of what data has been deleted. This may seem like a complication, but it makes it easier to reason about the data and the operations on it.</p>
 <p>As a further simplification we'll make our database use two files — one for keys, and the other for values.  We could employ one of various strategies to make all the data live in one file, but this will be easier.</p>
-<p>If all these simplifications seem like they add up to a database that isn't very useful it is because they do! We'll add the missing bells and whistles later, but it'll be instructive to do only this first.</p>
+<p>If all these simplifications seem like they add up to a database that isn't very useful it is because they do! We'll add missing bells and whistles later.</p>
 <p>We'll work in python and with the rule that we can use anything in the standard library and nothing outside of it. We'll also follow the guideline that we are trying to do as much as possible by hand.</p>
 <p>We need this guideline because python's standard library is so rich that there are not <a href="https://docs.python.org/3.5/library/shelve.html">one</a>, but <a href="https://docs.python.org/3.5/library/dbm.html">two</a> databases of this sort in there.[1] The standard library also has all kinds of other tools to make life easier. Who would want an easy life? We're trying to code from scratch.</p>
 <p>[1]: Bear in mind that both of those are databases with python interfaces, but without query processors and clients. You use them by writing python code to call the functions in their API. We're trying to do a little bit more than that here, but if your day job was to make a key-value store in python with a query language and a client, it'd be best to focus on the language and client and let the built-in databases do the rest.</p>
-<h2>10k foot view</h2>
+<h1>10k foot view</h1>
 <p>We know we'll need the following:</p>
 <ul>
 <li>data spec: what is allowed in the database and how to represent it</li>
@@ -107,36 +108,44 @@
 </ul>
 <p>Don't worry if why we need all these things isn't clear. It'll become clearer as we go. The main reason there are so many components is that it is easiest to reason about a given component or spec when it is only <a href="https://en.wikipedia.org/wiki/Single_responsibility_principle">in charge of doing one thing</a>.</p>
 <p>Before you move on, spend a few of minutes writing down how you'd implement or specify each of the things above. Ideally, you'd have a file with notes to guide your implementation. You can think of the rest of this section as a detailed version of such notes for the code that I designed and wrote.</p>
-<p>This section specifies the above components in detail. Trying to produce the code yourself without further guidance at this stage is a very good, but possibily time consuming exercise. Try it! You can always come back to reading this. See here [LETS START CODING] for details about how this tutorial's code and commits are organized, which is useful (and short) to read before starting to code on your own.</p>
-<h2>The minimal spec</h2>
-<h3>Data spec</h3>
+<p>The rest of this section specifies the above components in detail. Trying to produce the code yourself without further guidance at this stage is a very good, but possibily time consuming exercise. Try it! You can always come back to reading.</p>
+<h3>How the code will be organized</h3>
+<p>The code in the tutorial is written "back-to-front" (arbitrary choice) i.e. starting with the component that is farthest away from the user and ending with the component that interacts with the user. More specifically, it roughly goes in this order: storage layer -&gt; logical layer -&gt; database API -&gt; query processor -&gt; client.</p>
+<p>The <a href="https://github.com/scratchcode/scratchdb/">repository</a> is organized so that each tag corresponds to a tutorial section.</p>
+<p>Here's the <a href="https://github.com/scratchcode/scratchdb/commit/1847b895eb341afe88065c0029f8de28fe2ada4b">initial commit</a>.</p>
+<p>And these are the tags:</p>
+<p><a href="https://github.com/scratchcode/scratchdb/tree/physical-layer-first-pass">The physical layer, first pass</a></p>
+<hr />
+<h1>The minimal spec</h1>
+<h2>Data</h2>
 <p>Any python object that can be pickled will be a valid key or value i.e. <code>pickle</code> will serve both to specify what's valid and to serialize and de-serialize data.</p>
-<h3>Storage format</h3>
+<h2>Storage format</h2>
 <p>We'll store data as raw bytes in a file that also stores the length of a piece of data along with it i.e. our file will look like <code>&lt;size of the data, integer&gt;&lt;data&gt;&lt;size&gt;&lt;data&gt;&lt;size&gt;&lt;data&gt;...</code>.</p>
-<h3>Physical layer</h3>
+<h2>Physical layer</h2>
 <p>We'll write a wrapper around a python file object that exposes an API with methods to read and write in our format. The caller of this API won't have to deal with the length of the data, they can just read a given address. The physical layer will expose a <code>read()</code> method and only an <code>append()</code> method to write. The storage layer does not expose a method for deletion.</p>
-<h3>Logical Layer</h3>
+<h2>Logical Layer</h2>
 <p>The logical layer will maintain 2 instances of the object from the physical layer, one for keys and one for values. It is responsible of orchestrating between these objects to implement the database operations. Keys will be represented as python tuples: <code>(key, value_address)</code>. The first element is the python object representing the key and the second is the address in the values file where the value is stored. To keep track of deleted data, we'll assume the convention that a key whose <code>value_address</code> is <code>None</code> is understood to be deleted. Notice that since our database is append-only, whenever we are asked to get the value of a key we can't return as soon as we find the key, we have to find the last copy of that key in the file — it's latest value.</p>
-<h3>Database API</h3>
+<h2>Database API</h2>
 <p>This will be the simplest component to write, it consists of a python class with 4 exposed methods: one for each of the database operations (<code>get()</code>, <code>set()</code> and <code>pop()</code>) and one to close the connection to the database: <code>close()</code> (which in our case is simply closing the underlying files). This object uses an instance of the logical layer. This object is really just an interface, it should contain very little functionality.</p>
-<h3>Query language</h3>
+<h2>Query language</h2>
 <p>Our language syntax will consist of  <code>&lt;get or pop&gt; &lt;key&gt;</code> and <code>&lt;set&gt; &lt;key&gt; &lt;value&gt;</code>. Whitespace is disallowed in keys. All our tokens can be separated by white space (so that we can use the built-in <code>split()</code> to tokenize). Any valid python expression can be used as a key or value. We're making these questionable choices to make implementing the query processor easy.</p>
-<h3>Query processor</h3>
+<h2>Query processor</h2>
 <p>The query processor will have one method: <code>execute(query)</code> which either returns a string representing the result or the error message to display to the user. This object is responsible for enforcing the rules of the query language. We'll use the built-in <code>split()</code> to tokenize and <code>ast.literal_eval()</code> to parse keys and values. Whenever <code>ast.literal_eval()</code> fails, the given input will be interpreted as a string. We'll accept the "feature" that <code>set 2+2 "foo"</code> is the same as <code>set 4 foo</code>.  Since we're having the query processor handle validation and execution in a single function call, it'll be simplest if it has access to the relevant instance of the database API object.</p>
-<h3></h3>
-<h3>Client</h3>
+<h2>Client</h2>
 <p>We will write a command-line client, which will require specifying a database name along with the command in the shell i.e. the user would run it like so: <code>$ python toydb.py &lt;path to database directory&gt;</code>. The database directory is any directory that contains the keys and values files. The client will be a read-eval-print loop (usually called a <a href="https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop">REPL</a>) which will use an instance of the database API object and one of the query processor. The client will interpret <code>Ctrl-d</code> and <code>Ctrl-c</code> as exit commands.</p>
+<hr />
 <p>If theis spec seems sufficient to start coding, you can skip to [LETS START CODING]. The rest of this section goes into more detail about how to arrive at the spec above. It is a good, but time consuming, exercise to start coding using the spec above and only refer to the detailed explanations when you get stuck.</p>
-<h2>The minimal spec explained</h2>
-<h3>Data spec</h3>
-<p>What kinds of data should the user be able to store as values? What are valid keys? You may think that the best possible answer here is "anything!" and that's close, but there are exceptions. </p>
+<hr />
+<h1>The minimal spec explained</h1>
+<h2>Data</h2>
+<p>What kinds of data should the user be able to store as values? What are valid keys? You may think that the best possible answer here is "anything!" and that's close, but there are exceptions.</p>
 <p>Should the user be able to store an object that represents a connection to a server? In a sense, yes, the object is just a bunch of bytes and we could write those bytes to disk and let the user retrieve those bytes later. But, in the majority of cases, when such an object is retrieved it'll be useless. To understand why we'd have to go into a bit of a rabbit hole, but take my word for it.</p>
 <p>One way to go about answering the question is to defer it to the user: the database can store any set of bytes you give it. Let the user worry about how to turn their stuff into bytes and what to do with them when the database returns them. In fact, this is the approach that <a href="https://en.wikipedia.org/wiki/Dbm">dbm</a> takes, which is one of the databases that is built-in to the python standard library.</p>
 <p>The process of turning stuff into bytes is called serialization. Letting the user deal with that is a fine solution, but it limits the ability of the database to pack data densely in the file and to use time-efficient data structures to represent it. What if the user decides that the integer <code>1</code> should be represented by 100 bytes set to the value <code>0xff</code> (100 bytes that look like<code>11111111</code>) and then proceeds to just store the value <code>1</code> on a bunch of keys. This would interfere with two of the tasks of the database which is to store data efficiently and manipulate it efficiently. It'd be way more efficient to store the <code>1</code> as the byte <code>0x01</code> (ie <code>00000001</code>) once and just have the keys point to the same value. That way both storage and database operations would be very efficient.</p>
 <p>This is a general tradeoff: the more you know about the data, the more efficiently you can manipulate it and store it, but you have to do more work to specify what's allowed and the more you have to constrain the user.</p>
 <p>So, the more common approach is for the database to specify a set of types of objects that it supports. In the case of a key-value store, like we're building, this applies to both keys and values. This is what <a href="https://docs.python.org/3.5/library/dbm.html">shelve</a>, the other built-in database mentioned above, does. The keys have to be python strings and the values can be any python object that the <a href="https://docs.python.org/3.5/library/pickle.html#what-can-be-pickled-and-unpickled">pickle</a> module knows how to serialize. This is a pretty sensible approach, so let's do something very similar.</p>
 <p>In our case, we'll allow anything that can be pickled (haha, get it?) for both keys and values.</p>
-<h3>Storage format</h3>
+<h2>Storage format</h2>
 <p>Now that we know what we'll be storing, let's worry about how.</p>
 <p>We'll be writing our data to a file on disk and since our database has to support havign many keys and many values, we have to do some form of organizing in order to be able to store them in a sane way. After an object (ie a key or value) has been serialized it looks like a bunch of bytes ie a bunch of 0s and 1s. If we just store them one after the other in the file, we don't know which bytes go with which object. For example, we store the bytes for the key <code>key1</code> and then the bytes for <code>key2</code>. The bytes for <code>key1</code> look like (using python's syntax for raw-byte strings) <code>b'\x80\x03X\x04\x00\x00\x00key1q\x00.'</code> and the ones for <code>key2</code> look like <code>b'\x80\x03X\x04\x00\x00\x00key2q\x00.'</code> So, in our file we'd have <code>b'\x80\x03X\x04\x00\x00\x00key1q\x00.\x80\x03X\x04\x00\x00\x00key2q\x00.</code>. If we read all those bytes and have pickle deserialize them, we don't get <code>[key1, key2]</code> or anything resembling both of our keys. Try it in your python shell.</p>
 <div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">pickle</span>
@@ -154,13 +163,13 @@
 <p>There is another problem: how do we represent numbers? Is the number 2 represented as <code>01000000</code> or as <code>00000010</code> ie as <code>b'\x80' or as b'\x02</code>.</p>
 <p>To solve both of these we need to agree on an integer format. And we need to make sure that we can represent integers big-enough to be useful. The good news is that the range of values we can represent grows exponentially with the nubmer of bytes we allocate to represent the integers. We are at liberty to pick whatever integer representation we want, so let's make them long long, unsigned, big-endian integers. Long long means we'll use 8 bytes to represent each, unsigned means we won't bother representing negative numbers, and big-endian means that the least-significant bit is at the end, not at the beginning. In our implementation we'll use the standard library's <code>struct</code> module to handle the actual conversion between python ints and bytes.</p>
 <p>One last thing about this: if our data is 20 bytes long and we use 8 bytes to store its size should we think of it as data of size 20 or of size 28? This is arbitrary, one way or the other we'll have to do some bookkeeping, but we have to pick one. So we'll choose to include the size of the bytes storing the size in the size. i.e. we'll write 28 in the file for a piece of data that is 20 bytes in size. Size! Say size again!</p>
-<h3>Physical layer</h3>
+<h2>Physical layer</h2>
 <p>The physical layer of our database will consist of a class that is a wrapper around python's built-in <code>file</code>. It'll have internal methods to perform it's necessary operations and it will expose methods to read and <em>append</em> to the file and to close it. Remember that we decided to make it so that we don't delete data from our database, so there is no delete operation.</p>
 <p>Our physical layer will be in charge of dealing with the size of data. The layer that uses the physical layer aka "the caller" is the logical layer. In the logical layer we want to write code along the lines of <code>storage.append(data)</code>. Our physical layer will make that possible by taking care of measuring the size of the data and writing its size to the file before it. Ditto when reading data.</p>
 <p>Having the physical layer be responsible for dealing with the size of data may seem a bit arbitrary at first. Why should it be the physical layer that deals with the size and not the logical one? Why shouldn't we expose a method that is used like <code>storage.append(data_bytes, size_bytes)</code> and have the caller deal with it?</p>
 <p>We could do it that way, but it'd be bad design. The physical layer's single responsibility is to deal with the details of our data storage format. If the storage format changes in any way (for example, we decide to use fewer bytes to store the size), the logical layer should remain unchanged.</p>
 <p>The physical layer has to to deal with the sizes of the data and with what byte goes where and where it's current pointer into the file is pointing (that's the abstraction that <code>file</code> objects offer). It does not deal with things like determining whether something is a key or a value or noticing that this key already exists and so some data should be updated or anything of the sort. That's where the responsibilities of the logical layer begin.</p>
-<h3>Logical layer</h3>
+<h2>Logical layer</h2>
 <p>The logical layer is, in a sense, where the core of the database is implemented. The user thinks of the operations the database offers (set, get, pop) and the data they are manipulating. The logical layer is concerend of making all that happen. The logical layer is called that because this is where the logical representation of the data lives — we are writing a key-value store, so our logical layer will contain an implementation of a key-value data structure.</p>
 <p>The logical layer is also tasked with orchestrating with the storage layer. That is, it maintains instances of the storage object and uses them to persist data to disk.</p>
 <p>If you started complaining that this violates the single responsibltiy principle, kudos to you! It a sense it does: is the logical layer in charge of the logical operations allowed on the data? or is it in charge of orchestrating? One way or another, something will have to orchestrate, and if we get too principled about single-responsibility we'll start having lots of classes that do very little and while that will be good locally (each of those classes will be easy to write) it'll be difficult to think of our system globally. This tradeoff is very general: the smaller your abstractions the more indirection between them you'll have. One way or another, you'll have to draw the line somewhere.</p>
@@ -184,13 +193,13 @@ get key1
 
 <p>After the 1st command, we'd just have a single key object in the keys file and a single value in the values file, and after the 2nd command we'd have two of each as is intuitive. When we execute the 3rd command, we simply add another key to the keys file which would now contain 3 key objects <code>[(key1, address of foo), (key2,  address of bar), (key1, address of chicken)]</code> and the values file would have 3 values as well <code>[foo, bar, chicken]</code>. To retrieve key1 we'd iterate through the keys and we'd find key1 first up, but that key object would point us to <code>foo</code> which is not it's latest value. We have to iterate to the end to find the latest value,<code>chicken</code>. When we pop key1 we'd add another key object to the keys file <code>(key1, None)</code> which would not contain 4 key objects (3 of which are for key1!). When we do the last get, we'd find key1 3 times before finding it's latest version which has our representation of deleted. So we'd raise an error indicating that key1 isn't in the database.</p>
 <p>[1]: If it wasn't that the pickle module has such a simple interface and is capable of serializing just about anything, we would be wise to have serialization happen in a layer or component of its own. In fact, it may still be desirable to do so in order to be able to use a different (perhaps more space-efficient) serialization formats and tools.</p>
-<h3>Datbase API</h3>
+<h2>Datbase API</h2>
 <p>You think the storage format and the logical layer were difficult to think about? Wait til you read this part!</p>
 <p>Just kidding.</p>
 <p>The database API is probably the simplest component we'll write. Since the actual operations of the database are implemented in the logical layer, this layer only exists to give a nice python interface to the user. In principle, having this in place allows us to easily replace or modify the storage layer without impacting users of the database.</p>
 <p>The dabase API is a simple python class with a method for each of the database operations <code>set()</code>, <code>get()</code>, and <code>pop()</code> and one to close the connection to the database. Internally, it uses an instance of the storage layer.</p>
 <p>If we implement this far we would've replicated what <code>shelve</code> or <code>dbm</code> do. We'd have a python module which has a class the user can instantiate to get a database, which supports some pre-defined operations, and so on.</p>
-<h3>Query language</h3>
+<h2>Query language</h2>
 <p>We want to provide more to the user than just a python interface. We'd like to build a complete program that expects input in its own specialized syntax. This is where the query langauge comes in.[1]</p>
 <p>We have to support 3 operations. In all cases, the operations will involve specifying a <code>key</code>. And in 2 cases (get and delete) that'll be all that's needed. So, the simplest syntax for 2 of our operations take the form <code>&lt;command&gt; &lt;key&gt;</code>.  The remaining case (set) requires a value in addition, so it should be something along the lines of <code>&lt;command&gt; &lt;key&gt; &lt;value&gt;</code>.</p>
 <p>The <code>&lt;</code> and <code>&gt;</code> just indicate that something is a place holder. We still have to define what strings are valid for each place holder.</p>
@@ -243,17 +252,18 @@ bar
 <p>Lest we lose track, our language is:</p>
 <p><code>get &lt;key&gt;</code>, <code>pop &lt;key&gt;</code> and <code>&lt;set&gt; &lt;key&gt; &lt;value&gt;</code>, keys and values will be interpreted as python objects whenever possible and as strings otherwise, and keys cannot contain whitespace.</p>
 <p>[1]: Calling a language with <code>set key</code>, <code>pop key</code> and <code>set key=value</code> a query language is a bit of a stretch. Afterall, there isn't real querying going on — you have to know what you are looking for to find it. However, as an abstraction, a query language is what we are specifying here. We'll make it more powerful later.</p>
-<h3>Query processor</h3>
+<h2>Query processor</h2>
 <p>Now that we have the language specified, it is clear what the query processor does: it validates queries and then executes them. We'll put our query processor in charge of a slightly more general task, which again, violates the single responsibility principle a bit: the query processor takes a string with user input and returns a string with the output to show to the user. That output string can be a string representation of the database response to the user's command or an error message.</p>
 <p>To do its work our query processor will rely on two tools in the standard library: <code>split()</code> and <code>ast.literal_eval()</code>. After validating that the input string is valid, the query procesor will simply call the right function in the database API and convert what it gets back into a user-friendly string.</p>
-<h3>Client</h3>
+<h2>Client</h2>
 <p>The last piece! Exciting!</p>
 <p>Our client will be so simple that a single python function with a few lines of code will suffice to implement most of it.</p>
 <p>To start our client, in the command line, the user specifies the name of the database they will be working with. e.g. <code>$ python toydb.py testdb</code> The client is then in charge of opening a connection to the database <code>testdb</code> which under the hood we know is just opening two files. Since the user is really referring to a couple of files on disk, let us decide that the command-line argument is a path to a directory which contains the database files.</p>
 <p>Our client will print a prompt for the user and wait for input. Whenever the user enters a line of input, it'll send that to the query processor for it to execute the input on the database or to reject it as invalid. The client then prints out whatever the query processor returned and prints the prompt again.</p>
 <p>Pressing <code>Ctrl-d</code> or <code>Ctrl-c</code> tells our client to close its connection to the database and exit.</p>
 <p>And, you guessed it! The sandard library makes all this easy.</p>
-<h2>Further Reading</h2>
+<hr />
+<h1>Further Reading</h1>
 <p>http://stackoverflow.com/questions/4782590/what-is-an-expression-in-python</p>
 <p>https://docs.python.org/3/reference/expressions.html</p>
 <p>https://docs.python.org/3.5/library/pickle.html#what-can-be-pickled-and-unpickled</p>
@@ -276,7 +286,15 @@ bar
                 <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
                     <ul class="list-inline text-center">
                     </ul>
-                </div>
+<p>This tutorial is written and maintained by <a href="https://rz.github.io">Rodrigo Guzman</a>.</p>
+<p>
+I monitor the comments on the <a href="https://github.com/scratchcode/scratchdb/commits/master">commits in the repo</a>. That's the best place for questions or comments about the code.
+  If the question or comment is about a particular line or section of the code, try to put it inline.
+</p>
+<p>
+  If you think a private conversation it is more appropriate please email me at <a href="mailto:rodguze@gmail.com">rodguze@gmail.com</a>.
+  You can also reach out to me on twitter <a href="https://twitter.com/rodguze">@rodguze</a>.
+</p>                </div>
             </div>
         </div>
     </footer>
