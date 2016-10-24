@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>Implementing the logical layer</title>
+
+            <link href="https://scratchcode.github.io/databases/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title=" Full Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="https://scratchcode.github.io/databases/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="https://scratchcode.github.io/databases/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="https://scratchcode.github.io/databases/theme/css/code_blocks/github_jekyll.css" rel="stylesheet">
+
+            <!-- CSS specified by the user -->
+            <link href="https://scratchcode.github.io/databases/css/overrides.css" rel="stylesheet">
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="">
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="https://scratchcode.github.io/databases/"></a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-color: black">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>Implementing the logical layer</h1>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <article>
+        <h1>The gist</h1>
+<p>In this section we'll fill in the <code>Logical</code> class from the <a href="https://github.com/scratchcode/scratchdb/commit/1c921f8b1aa80d3e407bce4ca77fbca9ab46c8e9">first commit</a>. At the end we should have the logical layer working using instances of the physical layer. That is, there should be implemented methods in <code>Logical</code> for all 3 of the database operations according to our <a href="https://scratchcode.github.io/databases/01-design-key-value-store/">spec</a>.</p>
+<p>You see the finished code at this tag <a href="https://github.com/scratchcode/scratchdb/tree/logical-layer-first-pass">logical layer, first pass</a>. It is ~50 lines of code (much simpler than the physical layer!) and ~100 lines of tests. This should take about 30 minutes to read and understand. In case anything is confusing, each commit is explained in more detail below. If you feel like you understand the code sufficiently, move on to the next section.</p>
+<p>Remember, the best way to test that you understand things is to implement them yourself.</p>
+<h1>Detailed explanation, by commit</h1>
+<p><code>Logical</code> needs to provide 3 external methods, one for each of our operations. However, by design, we only need two: one to read from storage and one to append.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/e4f70ee47c3f805ef7a3f671871f24efb89ee6a1">e4f70ee</a> takes care of initialization of instances of <code>Logical</code> and also provides tests for that. The only thing that happens during initialization is that two instances of <code>FileStorage</code> are created, one for keys and another for values. This is the first time that design decision (from our spec) is manifesting itself in code. The commit also adds a couple of helper properties to <code>FileStorage</code> to indicate whether the object is open or not. While the code of <code>Logical</code> does not make explicit use of these, the tests do. It is reasonable to add this functionality to the API of <code>FileStorage</code>. Our testing strategy has not changed, and so the tests for the logical layer have the same problems as the tests for the physical layer.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/3cdea203381552644cf23aaa4994f83e108be1d4">3cdea20</a> implements the append operation. Notice that, as promised, the code for <code>set()</code> and <code>pop()</code> is the same, with the exception of the <code>for_deletion</code> flag. This flag is not strictly necessary, but it is there to make things explicit. We could, in principle, use the value of <code>value</code> to decide whether a key is being inserted for deletion. Whenever <code>value</code> is <code>None</code> we know we are deleting. Having the <code>for_deletion</code> flag makes the code a bit more readable and makes changing the special value we use to represent a deleted key easier if we decide to do so later.</p>
+<p>Another thing to note is that the call to the serialization function <code>pickle.dumps()</code> is buried in the guts of the <code>_insert()</code> method. An analogous thing will happen with the de-serialization function <code>pickle.loads()</code> when we write the <code>read()</code> method. This is not great. Ideally, we'd stick to the single responsibility principle and abstract serialization into its own component. However, doing so would add indirection to the code -- to figure out what's going on you'd have to jump from <code>Logical</code> to whatever  component we write to handle serialization. This is a very typical trade-off. Often, making code flexible requires indirection. The coupling between the <code>Logical</code> layer and serialization manifests itself in the tests also: the tests need to serialize in the same way that <code>Logical</code> does.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/4f5a4ef25fff4444e016fa281d68c0e600659186">4f5a4ef</a> implements <code>get()</code>. This commit looks suspiciously long! It adds the code for <code>get()</code> and also a helper method <code>_read_keys()</code> that reads all the keys from file. On top of that, it adds a method to the API of <code>FileStorage</code> that we hadn't originally planned. This is not good.</p>
+<p>This is happening due to a flaw with our design. The data structure we are using to store keys in <code>Logical</code> (a tuple of the form <code>(key, address of value)</code> does not capture what is the "next key" after a given key. It is also missing a way to capture which key is the last key. To get around these issues, the <code>Logical</code> layer relies on the details of the data format and the capabilities of <code>FileStorage</code>. This is bad. The concerns of the layers are mixed up. We will fix this later.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/fda85a7bc9fbb03bbc72f74da8b7db2ed20adb6f">fda85a7</a> adds a comprehensive test of the functionality of the database.</p>
+    </article>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                    </ul>
+<p>This tutorial is written and maintained by <a href="https://rz.github.io">Rodrigo Guzman</a>.</p>
+<p>
+I monitor the comments on the <a href="https://github.com/scratchcode/scratchdb/commits/master">commits in the repo</a>. That's the best place for questions or comments about the code.
+  If the question or comment is about a particular line or section of the code, try to put it inline.
+</p>
+<p>
+  If you think a private conversation it is more appropriate please email me at <a href="mailto:rodguze@gmail.com">rodguze@gmail.com</a>.
+  You can also reach out to me on twitter <a href="https://twitter.com/rodguze">@rodguze</a>.
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="https://scratchcode.github.io/databases/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="https://scratchcode.github.io/databases/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="https://scratchcode.github.io/databases/theme/js/clean-blog.min.js"></script>
+
+</body>
+
+</html>
