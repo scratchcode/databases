@@ -7,7 +7,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
 
-        <title>Database Tutorial</title>
+        <title>Implementing the query processor</title>
 
             <link href="https://scratchcode.github.io/databases/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title=" Full Atom Feed" />
         <!-- Bootstrap Core CSS -->
@@ -71,8 +71,7 @@
             <div class="row">
                 <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
                     <div class="post-heading">
-                        <h1>Database Tutorial</h1>
-                            <h3 class="subheading">by Scratchcode Academy</h3>
+                        <h1>Implementing the query processor</h1>
                     </div>
                 </div>
             </div>
@@ -84,28 +83,22 @@
         <div class="row">
             <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
     <article>
-        <h1>Contents</h1>
-<p><a href="https://scratchcode.github.io/databases/00-what-is-a-database/">What is a database?</a>
-text, ~1.3k words, ~10 min to read.</p>
-<p><a href="https://scratchcode.github.io/databases/01-design-key-value-store/">Designing a simple key-value store</a>
-text. ~5.5k words, ~60 min to read in detail. 1.3k words, ~10 min to read the gist.</p>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/1c921f8b1aa80d3e407bce4ca77fbca9ab46c8e9">First commit</a>
-code. 25 lines, ~1 min to read.</p>
-<p><a href="https://scratchcode.github.io/databases/02-implementing-physical-layer/">Implementing the physical layer</a>
-text + code. ~700 words, ~45 min to read in detail. ~100 words, ~20 mins to read the gist. 10 commits, ~150 lines of code and ~70 lines of tests.</p>
-<p><a href="https://scratchcode.github.io/databases/03-implementing-logical-layer/">Implementing the logical layer</a>
-text + code. ~600 words, ~30 min to read in detail. ~130 words, ~15 mins to read
-the gist. 4 commits, ~50 lines of code and ~100 lines of tests.</p>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/ff190a96ed79f6d5e8291edf62202fd04981c932">The API</a>
-code. 1 commit, ~12 lines of code and ~35 lines of tests. ~5 min to read.</p>
-<p><a href="https://scratchcode.github.io/databases/04-implementing-query-processor/">Implementing the query processor</a>
-text + code. ~600 words, ~30 min to ~130 words, ~15 mins to read the gist. 4 commits, ~60 lines of code and ~100 lines of tests.</p>
-<p>Implementing the client</p>
-<p>Putting it all together</p>
-<p>Load 'er up!</p>
-<p>Flaws to fix</p>
-<p>Detour 0: immutable data structures</p>
-<p>Using an immutable linked list in the logical layer</p>
+        <h1>The gist</h1>
+<p>In this section we'll fill in the <code>QueryProcessor</code> class from the <a href="https://github.com/scratchcode/scratchdb/commit/1c921f8b1aa80d3e407bce4ca77fbca9ab46c8e9">first commit</a>. At the end, we should have a working query processor that validates user input as queries and runs it on the database using the <code>ScratchDB</code> API. Technically, the query processor only has one public method that we need to implement, but we'll need several helpers behind the scenes.</p>
+<p>You can see the finished code at this tag <a href="https://github.com/scratchcode/scratchdb/tree/query-processor-first-pass">query processor,
+first-pass</a>. It is ~50 lines of code and ~100 lines of tests. This should take about 30 minutes to read and understand. In case anything is confusing, each commit is explained in more detail below. If you feel like you understand the code sufficiently, move on to the next section.</p>
+<p>Remember, the best way to test that you understand things is to implement them yourself.</p>
+<h1>Detailed explanation, by commit</h1>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/a8dfaa65d52acfa6ee9fd52f88229f9fa0dd0bc0">a8dfaa6</a> lays out the structure for the <code>QueryProcessor</code> class and the <code>execute()</code> method and implements the get command. Most of the action happens in this commit. The remaining commits of this section will implement the other operations in analogous way. This commit introduces a few helper methods:</p>
+<p><code>_handle_get()</code>, for the logic of the get command itself, so that <code>execute()</code> can be structured like a dispatcher.</p>
+<p><code>_validate_command()</code> to validate commands.</p>
+<p>A methodd to parse user-input strings into python objects and its inverse (sort of), to turn python values into strings for user-facing output. <code>_to_python()</code> and <code>_format()</code>, respectively. <code>_format()</code> adds some type information to the string representation of the value in question. <code>_to_python()</code> is more interesting: this method should return the python value represented by the given input. To do this, it uses the standard library's <code>ast.literal_eval()</code> and whenever that fails, it returns the passed-in value as a string, which is itself a python object. This means that things like <code>{1;2;3:4}</code> which are invalid python literals, get turned into strings.</p>
+<p><code>execute()</code> is structured such that it validates the user input, and if the input passes validation, it calls the respective handler. Regardless of what happens, per our spec, <code>execute()</code> should return a string. Note that <code>execute()</code> performs some validation on the command as a whole and some validation once it knows which command it is.</p>
+<p>In <code>_handle_get()</code>, it is safe to assume that the input is valid and so, it converts the key the user specified to a python value and performs the database lookup using the <code>ScratchDB</code> API. Since what this method returns will, in turn, be returned by <code>execute()</code>, <code>_handle_get()</code> formats the value from the DB as a string using <code>._format()</code>.</p>
+<p>The tests in this commit highlight a flaw of our current design. Namely, when <code>execute()</code> receives invalid input it is expected to return a string with an error message. This is problematic because we'd like to have a cleaner mechanism to signal that the error has ocurred i.e. it'd be better to use an exception. In the tests, instead of asserting that an exception is raised, the tests need to inspect the contents of the returned string. This may seem okay at first glance, but those strings are violating the single responsibility principle: they are both meant to be understood to the user and to signal to the user (and to other parts of our system) that an error has ocurred.</p>
+<p>Secondly, the tests highlight that validation and execution are intertwined in <code>execute()</code>. It would be better to have one helper responsible for validating the input and another responsible for executing it.</p>
+<p>We will live with these flaws for now, but they are in <code>debt.txt</code> so we can fix them later.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/f06f46d039824b8491089aba30684a5e2358fa91">f06f46d</a>  and <a href="https://github.com/scratchcode/scratchdb/commit/1ba4d9d68dcdc8da91285536a36ddf40f73f41f0">1ba4d9d</a> implement the pop and set commands in analogous ways to the get command. These commits do not address the design flaws mentioned above. Most of the time, it is better to have consistency than a perfect design on a subset of a given component. When we fix the design flaws, the fixes will apply to all of the commands, and that should happen in a commit of its own.</p>
     </article>
             </div>
         </div>
