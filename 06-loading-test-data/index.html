@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>Loading Test Data</title>
+
+            <link href="https://scratchcode.github.io/databases/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title=" Full Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="https://scratchcode.github.io/databases/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="https://scratchcode.github.io/databases/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="https://scratchcode.github.io/databases/theme/css/code_blocks/github_jekyll.css" rel="stylesheet">
+
+            <!-- CSS specified by the user -->
+            <link href="https://scratchcode.github.io/databases/css/overrides.css" rel="stylesheet">
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="">
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="https://scratchcode.github.io/databases/"></a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-color: black">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>Loading Test Data</h1>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <article>
+        <h1>The gist</h1>
+<p>We won't add any code to ScratchDB in this section. Instead, we'll write
+a script to load some test data onto it and play around with it. We know
+that our design and implementation have some flaws that we ought to fix.
+However, it is usually a good idea to kick the tires to expose the
+problems. That's what we'll do here.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/603bd158c217e20f21bf7fb590be38fa16798fb2">603bd15</a>
+adds a few files to our repo: some csv data files and a script to load
+them onto an instance of ScratchDB.</p>
+<p>The data files contain information about zipcodes. Each row has a
+zipcode along with its latitude, longitude, city, state, and county.
+There are 4 files: one with all the zipcodes for the US, another one
+only for zip codes in New York state and one more for zip codes only in
+New York City. The first has ~50k rows, the second ~3k and the
+third ~200.</p>
+<p>The script takes in the path of one of the csv files in the command
+line. It then opens an instance of ScratchDB and stores the rows from
+the file using the zipcodes as keys.</p>
+<p>Take some time to play around with this. What happens when you load the
+NYC data? the NY state data? What happens when you do a <code>get</code> in the
+ScratchDB prompt? Does everything work as expected? How long do the
+various things take?</p>
+<p>Try doing it all yourself and answering those questions before looking
+at the detailed guide that follows.</p>
+<h1>Detailed guide</h1>
+<p>The idea is to load the csv files into ScratchDB as to have a database
+of zipcodes: the user can enter a zipcode and get information about it.</p>
+<p>To load the data, run the <code>loadtest.py</code> script with the data file for
+NYC, which should go something like this:</p>
+<div class="highlight"><pre><span></span>$ python loadtest.py test-data/zip_codes_nyc.csv
+header row is:
+<span class="o">[</span><span class="s1">&#39;zip_code&#39;</span>, <span class="s1">&#39;latitude&#39;</span>, <span class="s1">&#39;longitude&#39;</span>, <span class="s1">&#39;city&#39;</span>, <span class="s1">&#39;state&#39;</span>, <span class="s1">&#39;county&#39;</span><span class="o">]</span>
+Processing rows: <span class="m">0</span> - <span class="m">1000</span> <span class="nb">time</span> ellapsed: 0:00:00.000019
+</pre></div>
+
+
+<p>Notice how long it took to load the data. There are only ~200 rows, so
+we expect this to be pretty quick.</p>
+<p>Then, fire up ScratchDB in your terminal, which drops you into the
+prompt for ScratchDB.</p>
+<div class="highlight"><pre><span></span>$ python scratchdb.py zip_codes_nyc
+Use Ctrl-D to exit.
+<span class="o">[</span>scratchdb<span class="o">]=</span>&gt;
+</pre></div>
+
+
+<p>Let's try a query!</p>
+<div class="highlight"><pre><span></span>[scratchdb]=&gt; get 10003
+  Key not found: 10003
+</pre></div>
+
+
+<p>10003 is a zip code in Manhattan and it is definitely in the csv file we
+loaded. What's going on?</p>
+<p>The <code>loadtest.py</code> script treats all the values in the csv are as strings
+and ScratchDB supports any python type for keys and values. This means
+that <code>10003</code> is different than <code>"10003"</code>, the latter is in the DB but we
+typed the former. Let's try again...</p>
+<div class="highlight"><pre><span></span>[scratchdb]=&gt; get &#39;10003&#39;
+  &lt;dict&gt;: {&#39;state&#39;: &#39;NY&#39;, &#39;latitude&#39;: &#39;40.730223&#39;, &#39;county&#39;: &#39;New York&#39;, &#39;longitude&#39;: &#39;-73.988564&#39;, &#39;city&#39;: &#39;New York&#39;}
+</pre></div>
+
+
+<p>Presto! Things are working.</p>
+<p>Take a few moments to play around with this. Insert some more values
+into the DB, quit ScratchDB and then restart it, make sure your values
+are still there, delete some values, etc. Also, take some time to load
+the <code>zip_codes_ny_state.csv</code> and <code>zip_codes_all_states.csv</code> files onto
+instances of ScratchDB (remember that the script will use
+<code>zip_codes_ny_state</code> and <code>zip_codes_all_states</code> for the database names
+respectively).</p>
+<p>When you load the NY state zip codes, it will look something like:</p>
+<div class="highlight"><pre><span></span>$ python loadtest.py test-data/zip_codes_ny_state.csv
+header row is:
+<span class="o">[</span><span class="s1">&#39;zip_code&#39;</span>, <span class="s1">&#39;latitude&#39;</span>, <span class="s1">&#39;longitude&#39;</span>, <span class="s1">&#39;city&#39;</span>, <span class="s1">&#39;state&#39;</span>, <span class="s1">&#39;county&#39;</span><span class="o">]</span>
+Processing rows: <span class="m">0</span> - <span class="m">1000</span> <span class="nb">time</span> ellapsed: 0:00:00.000067
+Processing rows: <span class="m">1000</span> - <span class="m">2000</span> <span class="nb">time</span> ellapsed: 0:00:03.464189
+Processing rows: <span class="m">2000</span> - <span class="m">3000</span> <span class="nb">time</span> ellapsed: 0:00:14.351758
+</pre></div>
+
+
+<p>Notice how rows 1000 - 2000 take a lot longer than rows 0 - 1000, and
+rows 2000 - 3000 take even longer.</p>
+<p>When you try doing some queries on that DB you'll also find that they
+are pretty slow. There will be a noticeable lag before the results come
+back. Try it!</p>
+<p>When you try loading the data for all states you'll find that even
+loading it takes a really long time -- it was about an hour on my
+machine.</p>
+<p>This is not too surprising given that we didn't pay any mind to
+performance as we were writing the code. However, try to understand why
+the performance is so bad. We'll fix this among other things in the
+sections that follow -- understanding why something is slow is the first
+step in trying to make it faster.</p>
+<p>Despite all its flaws, our first pass at ScratchDB basically works. This
+is a good way to write code: get some not-too-good version working first
+and then improve it. It is very easy to become paralyzed by
+over-designing and over-thinking code before you start. This is a good
+way to avoid that.</p>
+    </article>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                    </ul>
+<p>This tutorial is written and maintained by <a href="https://rz.github.io">Rodrigo Guzman</a>.</p>
+<p>
+I monitor the comments on the <a href="https://github.com/scratchcode/scratchdb/commits/master">commits in the repo</a>. That's the best place for questions or comments about the code.
+  If the question or comment is about a particular line or section of the code, try to put it inline.
+</p>
+<p>
+  If you think a private conversation it is more appropriate please email me at <a href="mailto:rodguze@gmail.com">rodguze@gmail.com</a>.
+  You can also reach out to me on twitter <a href="https://twitter.com/rodguze">@rodguze</a>.
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="https://scratchcode.github.io/databases/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="https://scratchcode.github.io/databases/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="https://scratchcode.github.io/databases/theme/js/clean-blog.min.js"></script>
+
+</body>
+
+</html>
