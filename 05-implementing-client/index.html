@@ -84,14 +84,40 @@
             <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
     <article>
         <h1>The gist</h1>
-<p>In this section we'll write the last component, the client! At the end we should have a complete system which can be ran from the command line and use it to store data.</p>
-<p>You can see the finished code at this tag <a href="https://github.com/scratchcode/scratchdb/tree/first-pass-complete">first-pass,
-complete</a>. The code for the client is about ~20 lines and I've opted for not having tests for it for now. Testing user-interfaces tends to be more difficult than testing other pieces of code and, for now, our client is simple-enough that we can get away with not having them. The code should take only a few minutes to read and understand. If you feel like you understand the code sufficiently, move on to the next section.</p>
-<p>Remember, the best way to test that you understand things is to implement them yourself.</p>
+<p>In this section we'll write the last component, the client! At the end
+we should have a complete system which can be ran from the command line
+and use it to store data.</p>
+<p>You can see the finished code at this tag
+<a href="https://github.com/scratchcode/scratchdb/tree/03-first-pass-complete">first pass complete</a>.
+The code for the client is about ~20 lines and I've opted for not having
+tests for it for now. Testing user-interfaces tends to be more difficult
+than testing other pieces of code and, for now, our client is
+simple-enough that we can get away with not having them. The code should
+take only a few minutes to read and understand. If you feel like you
+understand the code sufficiently, move on to the next section.</p>
 <h1>Detailed explanation</h1>
-<p>There is only one commit for the client, <a href="https://github.com/scratchcode/scratchdb/commit/dbf1cb1f526c14707ad57ada33bf97be324d98cf">dbf1cb1</a>. The way our client operates is by requiring that the user specify the name of the database in the command line and then it drops the user into a <a href="https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop">read-eval-print loop</a> to perform database operations.</p>
-<p>Since our database works by using two files, <code>&lt;db name&gt;.keys</code> and <code>&lt;db name&gt;.values</code>, those files will be created in whatever directory the user runs our database in if they aren't already there. This highlights a problem with our design: it would be better to let the user specify a <em>path</em> to the files to use so they can be located anywhere. We would have to change a few lines of code to accommodate that, but then the user would have to specify two paths in the command line. Or maybe we could interpret the database name as a directory and put both files there. That would require that we write some more code.</p>
-<p>The more elegant solution would be to have our database use only one file. Then the user would have to specify the path to that file, and our client could also have the convention that if only a name is given, the file is assumed to be (or be created) in the directory that the client runs. This would require that we change quite a bit of our code, though! And that's what we'll do, among a few other things, in upcoming sections.</p>
+<p>There is only one commit for the client,
+<a href="https://github.com/scratchcode/scratchdb/commit/b844e31ec1f1a88878e8e497223cad257701ab0b">b844e31</a>.
+The way our client operates is by requiring that the user specify the
+name of the database in the command line and then it drops the user into a
+<a href="https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop">read-eval-print loop</a>
+to perform database operations.</p>
+<p>Since our database works by using two files, <code>&lt;db name&gt;.keys</code> and <code>&lt;db
+name&gt;.values</code>, those files will be created in whatever directory the
+user runs our database in (if they aren't already there). This highlights
+a problem with our design: it would be better to let the user specify a
+<em>path</em> to the files to use so they can be located anywhere. We would
+have to change a few lines of code to accommodate that, but then the
+user would have to specify two paths in the command line. Or maybe we
+could interpret the database name as a directory and put both files
+there. That would require that we write some more code.</p>
+<p>The more elegant solution would be to have our database use only one
+file. Then the user would have to specify the path to that file, and our
+client could also have the convention that if only a name is given, the
+file is assumed to be (or be created) in the directory that the client
+runs. This would require that we change quite a bit of our code, though!
+And that's what we'll do, among a few other things, in upcoming
+sections.</p>
     </article>
             </div>
         </div>
