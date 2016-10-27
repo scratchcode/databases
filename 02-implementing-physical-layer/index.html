@@ -84,21 +84,66 @@
             <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
     <article>
         <h1>The gist</h1>
-<p>In this section we'll fill in the <code>FileStorage</code> class from the <a href="https://github.com/scratchcode/scratchdb/commit/1c921f8b1aa80d3e407bce4ca77fbca9ab46c8e9">first commit</a>. At the end we should have the physical layer working. That is, there should be implemented methods in <code>FileStorage</code> for reading and appending to a file according to our <a href="https://scratchcode.github.io/databases/01-design-key-value-store/">data format</a>.</p>
-<p>You can see the finished code at this tag: <a href="https://github.com/scratchcode/scratchdb/tree/physical-layer-first-pass">physical layer, first pass</a>. It is ~150lines of code and ~70 lines of tests in <a href="https://github.com/scratchcode/scratchdb/commits/physical-layer-first-pass">10 commits</a>. This should take about 30 minutes to read and understand. In case anything is confusing, each commit is explained in more detail below. If you feel like you understand the code sufficiently, move on to the next section.</p>
-<p>Remember, the best way to test that you understand things is to implement them yourself.</p>
+<p>In this section we'll fill in the <code>FileStorage</code> class from the
+<a href="https://github.com/scratchcode/scratchdb/commit/1c921f8b1aa80d3e407bce4ca77fbca9ab46c8e9">first commit</a>.
+At the end we should have the physical layer working. That is, there should be implemented methods
+in <code>FileStorage</code> for reading and appending to a file according to our
+<a href="https://scratchcode.github.io/databases/01-design-key-value-store/">data format</a>.</p>
+<p>You can see the finished code at this tag:
+<a href="https://github.com/scratchcode/scratchdb/tree/00-first-pass-physical-layer">first pass physical layer</a>.</p>
+<p>It is ~150 lines of code and ~70 lines of tests in 10 commits. This should take about 30 minutes to
+read and understand. In case anything is confusing, each commit is explained in more detail below.
+If you feel like you understand the code sufficiently, move on to the next section.</p>
 <h1>Detailed explanation, by commit</h1>
-<p><code>FileStorage</code> will be a "thin wrapper" around a python file object. That means that internally it'll have a reference to a file object and it will expose some methods that are meant to be used by "the caller" (ie whatever component ends up using this class).</p>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/d61d78d644f743fae82116084c77a6265c77c36a">d61d78d</a> lays out the basic structure without doing anything else. The only important thing that happened is that we defined the methods to expose. While we write the placeholders now, we will actually write their contents at the end. The reason for that is that we'll build up our helper methods to be more and more useful until filling in <code>read()</code> and <code>append()</code> is just a matter of a calling a few helper methods.</p>
-<p>In <a href="https://github.com/scratchcode/scratchdb/commit/680fe53505d57a1f39db7bff2a3cad3b1b9054a8">680fe53</a> we deal with a couple of concerns: initializing the <code>FileStorage</code> object, which basically means opening the underlying file. Since we will be opening a file, we should have some way to close it. So, we added an exposed method for that. The strings <code>'bx+'</code> and <code>'r+b'</code> that we pass to <code>open()</code> specify what should happen during the <code>open()</code> call. The <code>b</code> is for binary mode, meaning we will be reading and writing raw bytes (as opposed to strings using some encoding). The <code>+</code> means to open the file for updating i.e. reading and writing. The <code>x</code> means to create the file if it does not exist and makes <code>open()</code> throw an exception if it does. That's why we need the try/except. That way we create the file if it isn't there and otherwise we opening for reading and writing wihtout overwriting or truncating it.</p>
+<p><code>FileStorage</code> will be a "thin wrapper" around a python file object. That means that internally it'll
+have a reference to a file object and it will expose some methods that are meant to be used by "the
+caller" (ie whatever component ends up using this class).</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/d61d78d644f743fae82116084c77a6265c77c36a">d61d78d</a>
+lays out the basic structure and nothing else. The only important thing that happened is that we
+defined the methods to expose. We're only making placeholders for the external methods right now
+because we'll build up our helper methods to be more and more useful until filling in <code>read()</code> and
+<code>append()</code> is just a matter of a calling a few helper methods.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/680fe53505d57a1f39db7bff2a3cad3b1b9054a8">680fe53</a>
+deals with a couple of concerns: initializing the <code>FileStorage</code> object, which basically means
+opening the underlying file. Since we will be opening a file, we should have some way to close it.
+So, we added an exposed method for that. The strings <code>'bx+'</code> and <code>'r+b'</code> that we pass to <code>open()</code>
+specify what should happen during the <code>open()</code> call. The <code>b</code> is for binary mode, meaning we will be
+reading and writing raw bytes (as opposed to strings using some encoding). The <code>+</code> means to open the
+file for updating i.e. reading and writing. The <code>x</code> means to create the file if it does not exist
+and makes <code>open()</code> throw an exception if it does. That's why we need the try/except. That way we
+create the file if it isn't there and otherwise we opening for reading and writing without
+overwriting or truncating it.</p>
 <p>To be sure that our logic is right and stays correct as we implement, we should add a few tests.</p>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/7c3f7e908fc943f880f24bcb367af0ea8efaed4e">7c3f7e9</a> sets up basic scaffolding to be able to run our test suite like <code>python tests.py</code>. Try it! We will be writing the test suite as we go along.</p>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/fede93b3b409bea8e79ab7ef705bac46b94b4444">fede93b</a> adds a few test cases for the file creation logic. Note that these tests are not the best -- they create temporary files to do their verification and they assert on attributes private to the <code>FileStorage</code> object. In the interest of time, we'll just keep track of things like this and clean them up later. We do that in <a href="https://github.com/scratchcode/scratchdb/commit/542c101fac6abc3d17061ff97d22eec441516d2b">542c101</a>.</p>
-<p>Given that our data format includes the length of a piece of data right brefore it, we'll rely on the integer <code>0</code> for a length to signal that there is nothing else in the file. To that effect, it will be useful that there are always zero bytes at the end of the file. We take care of that during initialization.</p>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/4796f5767faa3a2a8ab1195845bcf6a70416474b">4796f57</a> makes that happen using some internal helper methods[1] which simply delegate their job to the underlying file. The commit also adds a test case for the new functionality and modifies one of our old test cases to be consistent with the new functionality.</p>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/4d99b31fa26efd736fa9c6eb2e059603d475223b">4d99b31</a> adds helper methods to organize the way we access the underlying file object. Namely, we have two kinds of helper methods: those that manipulate the internal file <code>self._f</code> and those that don't. This organization is to prevent human errors i.e. help with our sanity.</p>
-<p>Finally, in <a href="https://github.com/scratchcode/scratchdb/commit/da9b2d50806ea76941222055dc81c7587aaec303">da9b2d5</a> we implement the external methods using our helpers and we also add a couple of test cases for the new functionality.</p>
-<p>[1]: Unlike some other languages, python does not provide any facilities for enforcing that internal methods are only used in methods of the class in question. Instead, there is a convention that methods whose name starts with an underscore <code>_</code> are internal, and other classes should not rely on them even though they can be called from anywhere. This is often convenient to do, but it should always give you pause.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/7c3f7e908fc943f880f24bcb367af0ea8efaed4e">7c3f7e9</a>
+sets up basic scaffolding to be able to run our test suite like <code>python tests.py</code>. Try it! We will
+be writing the test suite as we go along.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/fede93b3b409bea8e79ab7ef705bac46b94b4444">fede93b</a>
+adds a few test cases for the file creation logic. Note that these tests are not the best -- they
+create temporary files to do their verification and they assert on attributes private to the
+<code>FileStorage</code> object. In the interest of time, we'll just keep track of things like this and clean
+them up later. We do that in
+<a href="https://github.com/scratchcode/scratchdb/commit/542c101fac6abc3d17061ff97d22eec441516d2b">542c101</a>.</p>
+<p>Given that our data format includes the length of a piece of data right brefore it, we'll rely on
+the integer <code>0</code> for a length to signal that there is nothing else in the file. To that effect, it
+will be useful that there are always zero bytes at the end of the file. We take care of that during
+initialization.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/b2c416d69283a970bbb26aa8fd72a3beacfd3d95">b2c416d</a>
+makes that happen using some internal helper methods[1] which simply delegate their job to the
+underlying file. The commit also adds a test case for the new functionality and modifies one of our
+old test cases to be consistent with the new functionality.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/223195e5d87df476755ab1b9848edce225e55296">223195e</a>
+adds helper methods to organize the way we access the underlying file object. Namely, we have two
+kinds of helper methods: those that manipulate the internal file <code>self._f</code> and those that don't.
+This organization is to prevent human errors i.e. help with our sanity.</p>
+<p>Finally, in
+<a href="https://github.com/scratchcode/scratchdb/commit/b5b0b396ebaed12454dccc58da528d85addaf14f">b5b0b39</a>
+we implement the external methods using our helpers and we also add a couple of test cases for the
+new functionality.</p>
+<p>[1]: Unlike some other languages, python does not provide any facilities for enforcing that internal
+methods are only used in methods of the class in question. Instead, there is a convention that
+methods whose name start with an underscore <code>_</code> are internal, and other classes should not rely on
+them even though they can be called from anywhere. This is often convenient to do, but it should
+always give you pause.</p>
     </article>
             </div>
         </div>

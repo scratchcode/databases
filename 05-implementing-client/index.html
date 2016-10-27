@@ -7,7 +7,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
 
-        <title>Implementing the query processor</title>
+        <title>Implementing the client</title>
 
             <link href="https://scratchcode.github.io/databases/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title=" Full Atom Feed" />
         <!-- Bootstrap Core CSS -->
@@ -71,7 +71,7 @@
             <div class="row">
                 <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
                     <div class="post-heading">
-                        <h1>Implementing the query processor</h1>
+                        <h1>Implementing the client</h1>
                     </div>
                 </div>
             </div>
@@ -84,21 +84,14 @@
             <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
     <article>
         <h1>The gist</h1>
-<p>In this section we'll fill in the <code>QueryProcessor</code> class from the <a href="https://github.com/scratchcode/scratchdb/commit/1c921f8b1aa80d3e407bce4ca77fbca9ab46c8e9">first commit</a>. At the end, we should have a working query processor that validates user input as queries and runs it on the database using the <code>ScratchDB</code> API. Technically, the query processor only has one public method that we need to implement, but we'll need several helpers behind the scenes.</p>
-<p>You can see the finished code at this tag <a href="https://github.com/scratchcode/scratchdb/tree/query-processor-first-pass">query processor,
-first-pass</a>. The new code is ~50 lines and ~100 lines of tests. This should take about 30 minutes to read and understand. In case anything is confusing, each commit is explained in more detail below. If you feel like you understand the code sufficiently, move on to the next section.</p>
+<p>In this section we'll write the last component, the client! At the end we should have a complete system which can be ran from the command line and use it to store data.</p>
+<p>You can see the finished code at this tag <a href="https://github.com/scratchcode/scratchdb/tree/first-pass-complete">first-pass,
+complete</a>. The code for the client is about ~20 lines and I've opted for not having tests for it for now. Testing user-interfaces tends to be more difficult than testing other pieces of code and, for now, our client is simple-enough that we can get away with not having them. The code should take only a few minutes to read and understand. If you feel like you understand the code sufficiently, move on to the next section.</p>
 <p>Remember, the best way to test that you understand things is to implement them yourself.</p>
-<h1>Detailed explanation, by commit</h1>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/a8dfaa65d52acfa6ee9fd52f88229f9fa0dd0bc0">a8dfaa6</a> lays out the structure for the <code>QueryProcessor</code> class and the <code>execute()</code> method and implements the get command. Most of the action happens in this commit. The remaining commits of this section will implement the other operations in analogous way. This commit introduces a few helper methods:</p>
-<p><code>_handle_get()</code>, for the logic of the get command itself, so that <code>execute()</code> can be structured like a dispatcher.</p>
-<p><code>_validate_command()</code> to validate commands.</p>
-<p>A methodd to parse user-input strings into python objects and its inverse (sort of), to turn python values into strings for user-facing output. <code>_to_python()</code> and <code>_format()</code>, respectively. <code>_format()</code> adds some type information to the string representation of the value in question. <code>_to_python()</code> is more interesting: this method should return the python value represented by the given input. To do this, it uses the standard library's <code>ast.literal_eval()</code> and whenever that fails, it returns the passed-in value as a string, which is itself a python object. This means that things like <code>{1;2;3:4}</code> which are invalid python literals, get turned into strings.</p>
-<p><code>execute()</code> is structured such that it validates the user input, and if the input passes validation, it calls the respective handler. Regardless of what happens, per our spec, <code>execute()</code> should return a string. Note that <code>execute()</code> performs some validation on the command as a whole and some validation once it knows which command it is.</p>
-<p>In <code>_handle_get()</code>, it is safe to assume that the input is valid and so, it converts the key the user specified to a python value and performs the database lookup using the <code>ScratchDB</code> API. Since what this method returns will, in turn, be returned by <code>execute()</code>, <code>_handle_get()</code> formats the value from the DB as a string using <code>._format()</code>.</p>
-<p>The tests in this commit highlight a flaw of our current design. Namely, when <code>execute()</code> receives invalid input it is expected to return a string with an error message. This is problematic because we'd like to have a cleaner mechanism to signal that the error has ocurred i.e. it'd be better to use an exception. In the tests, instead of asserting that an exception is raised, the tests need to inspect the contents of the returned string. This may seem okay at first glance, but those strings are violating the single responsibility principle: they are both meant to be understood to the user and to signal to the user (and to other parts of our system) that an error has ocurred.</p>
-<p>Secondly, the tests highlight that validation and execution are intertwined in <code>execute()</code>. It would be better to have one helper responsible for validating the input and another responsible for executing it.</p>
-<p>We will live with these flaws for now, but they are in <code>debt.txt</code> so we can fix them later.</p>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/f06f46d039824b8491089aba30684a5e2358fa91">f06f46d</a>  and <a href="https://github.com/scratchcode/scratchdb/commit/1ba4d9d68dcdc8da91285536a36ddf40f73f41f0">1ba4d9d</a> implement the pop and set commands in analogous ways to the get command. These commits do not address the design flaws mentioned above. Most of the time, it is better to have consistency than a perfect design on a subset of a given component. When we fix the design flaws, the fixes will apply to all of the commands, and that should happen in a commit of its own.</p>
+<h1>Detailed explanation</h1>
+<p>There is only one commit for the client, <a href="https://github.com/scratchcode/scratchdb/commit/dbf1cb1f526c14707ad57ada33bf97be324d98cf">dbf1cb1</a>. The way our client operates is by requiring that the user specify the name of the database in the command line and then it drops the user into a <a href="https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop">read-eval-print loop</a> to perform database operations.</p>
+<p>Since our database works by using two files, <code>&lt;db name&gt;.keys</code> and <code>&lt;db name&gt;.values</code>, those files will be created in whatever directory the user runs our database in if they aren't already there. This highlights a problem with our design: it would be better to let the user specify a <em>path</em> to the files to use so they can be located anywhere. We would have to change a few lines of code to accommodate that, but then the user would have to specify two paths in the command line. Or maybe we could interpret the database name as a directory and put both files there. That would require that we write some more code.</p>
+<p>The more elegant solution would be to have our database use only one file. Then the user would have to specify the path to that file, and our client could also have the convention that if only a name is given, the file is assumed to be (or be created) in the directory that the client runs. This would require that we change quite a bit of our code, though! And that's what we'll do, among a few other things, in upcoming sections.</p>
     </article>
             </div>
         </div>
