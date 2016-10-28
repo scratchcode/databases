@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>Improving performance, first try</title>
+
+            <link href="https://scratchcode.github.io/databases/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title=" Full Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="https://scratchcode.github.io/databases/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="https://scratchcode.github.io/databases/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="https://scratchcode.github.io/databases/theme/css/code_blocks/github_jekyll.css" rel="stylesheet">
+
+            <!-- CSS specified by the user -->
+            <link href="https://scratchcode.github.io/databases/css/overrides.css" rel="stylesheet">
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="">
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="https://scratchcode.github.io/databases/"></a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-color: black">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>Improving performance, first try</h1>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <article>
+        <h1>The gist</h1>
+<p>By profiling the code we find that the reason that <code>get</code> is slow is that
+<code>Logical._read_keys()</code> does O(N<sup>2</sup>) seek operations on the
+underlying file. This happens because <code>FileStorage.next_address()</code> is
+too defensive about the <code>address</code> argument: it rewinds to the beginning
+of the file in case address points to the middle of some piece of data
+(as opposed to the integer before it representing the length of said
+data). Since <code>FileStorage.next_address()</code> is only used by
+<code>Logical.read_keys()</code> in a loop that starts at address 0, it is safe for
+<code>next_address()</code> to assume its <code>address</code> argument is valid.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/3d84ace63cf59722afecb125e97e1060adcd97ac">3d84ace</a>
+in branch <code>read-keys-perf</code> implements this change.</p>
+<p>With this, <code>read_keys</code> does O(n) file seeks and the performance of
+<code>get</code> improves drastically, from ~10s to ~0.5s.</p>
+<p>However, this is still not a good solution because <code>next_address()</code>
+should not exist in the first place because it's only there to work
+around limitations of the logical layer. A good solution would be to
+improve the logical layer. We'll start addressing that concern in the
+next section.</p>
+<h1>Detailed explanation</h1>
+<p>So... <code>get</code> is very slow. Whenever faced with a performance problem,
+there are two basic approaches to figuring out what's happening:
+reasoning about the code and profiling. When code is simple, reasoning
+is likely the quickest way to identify the problems. It's more common,
+though, to start by using a profiler to identify slow parts of the code
+and go from there. When working in high-level languages (such as python)
+the profiling approach is usually better because the problems may be due
+to some language or standard-library feature/bug, or due to using them
+badly.</p>
+<p>In this case, the issue is relatively straight-forward, and you might've
+already figured out what the issue is by reasoning about the code, but
+let's identify the issue by profiling anyway.</p>
+<h2>Profiling</h2>
+<p>The python standard library comes with a very good profiler which is
+easy to use: <a href="https://docs.python.org/2/library/profile.html">cProfile</a>.
+In a python shell, import <code>scratchdb</code> and <code>cProfile</code>, open the database
+of NY state zip codes and profile a call to get.</p>
+<p>Try it before reading on.</p>
+<p>It will look, more or less, like this:</p>
+<div class="highlight"><pre><span></span><span class="n">In</span> <span class="p">[</span><span class="mi">1</span><span class="p">]:</span> <span class="kn">import</span> <span class="nn">scratchdb</span><span class="o">,</span> <span class="nn">cProfile</span>
+
+<span class="n">In</span> <span class="p">[</span><span class="mi">2</span><span class="p">]:</span> <span class="n">db</span> <span class="o">=</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">ScratchDB</span><span class="p">(</span><span class="s1">&#39;zip_codes_ny_state&#39;</span><span class="p">)</span>
+
+<span class="n">In</span> <span class="p">[</span><span class="mi">3</span><span class="p">]:</span> <span class="n">cProfile</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s1">&#39;db.get(&quot;10003&quot;)&#39;</span><span class="p">)</span>
+         <span class="mi">22515381</span> <span class="n">function</span> <span class="n">calls</span> <span class="ow">in</span> <span class="mf">14.244</span> <span class="n">seconds</span>
+
+   <span class="n">Ordered</span> <span class="n">by</span><span class="p">:</span> <span class="n">standard</span> <span class="n">name</span>
+
+   <span class="n">ncalls</span>  <span class="n">tottime</span>  <span class="n">percall</span>  <span class="n">cumtime</span>  <span class="n">percall</span> <span class="n">filename</span><span class="p">:</span><span class="n">lineno</span><span class="p">(</span><span class="n">function</span><span class="p">)</span>
+        <span class="mi">1</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span>   <span class="mf">14.244</span>   <span class="mf">14.244</span> <span class="o">&lt;</span><span class="n">string</span><span class="o">&gt;</span><span class="p">:</span><span class="mi">1</span><span class="p">(</span><span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span><span class="p">)</span>
+  <span class="mi">2498729</span>    <span class="mf">2.561</span>    <span class="mf">0.000</span>    <span class="mf">9.666</span>    <span class="mf">0.000</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">102</span><span class="p">(</span><span class="n">_read_integer_and_rewind</span><span class="p">)</span>
+     <span class="mi">2235</span>    <span class="mf">0.004</span>    <span class="mf">0.000</span>    <span class="mf">0.013</span>    <span class="mf">0.000</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">137</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+     <span class="mi">2234</span>    <span class="mf">2.590</span>    <span class="mf">0.001</span>   <span class="mf">14.208</span>    <span class="mf">0.006</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">171</span><span class="p">(</span><span class="n">next_address</span><span class="p">)</span>
+        <span class="mi">1</span>    <span class="mf">0.007</span>    <span class="mf">0.007</span>   <span class="mf">14.243</span>   <span class="mf">14.243</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">194</span><span class="p">(</span><span class="n">_read_keys</span><span class="p">)</span>
+        <span class="mi">1</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span>   <span class="mf">14.243</span>   <span class="mf">14.243</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">215</span><span class="p">(</span><span class="n">get</span><span class="p">)</span>
+        <span class="mi">1</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span>   <span class="mf">14.244</span>   <span class="mf">14.244</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">248</span><span class="p">(</span><span class="n">get</span><span class="p">)</span>
+  <span class="mi">4997459</span>    <span class="mf">2.000</span>    <span class="mf">0.000</span>    <span class="mf">4.132</span>    <span class="mf">0.000</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">33</span><span class="p">(</span><span class="n">_seek</span><span class="p">)</span>
+     <span class="mi">2234</span>    <span class="mf">0.002</span>    <span class="mf">0.000</span>    <span class="mf">0.008</span>    <span class="mf">0.000</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">40</span><span class="p">(</span><span class="n">_seek_start</span><span class="p">)</span>
+  <span class="mi">2503198</span>    <span class="mf">1.009</span>    <span class="mf">0.000</span>    <span class="mf">1.895</span>    <span class="mf">0.000</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">57</span><span class="p">(</span><span class="n">_read</span><span class="p">)</span>
+  <span class="mi">2500964</span>    <span class="mf">2.318</span>    <span class="mf">0.000</span>    <span class="mf">4.925</span>    <span class="mf">0.000</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">92</span><span class="p">(</span><span class="n">_read_integer</span><span class="p">)</span>
+     <span class="mi">2234</span>    <span class="mf">0.014</span>    <span class="mf">0.000</span>    <span class="mf">0.014</span>    <span class="mf">0.000</span> <span class="p">{</span><span class="n">built</span><span class="o">-</span><span class="ow">in</span> <span class="n">method</span> <span class="n">_pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">}</span>
+  <span class="mi">2500964</span>    <span class="mf">0.713</span>    <span class="mf">0.000</span>    <span class="mf">0.713</span>    <span class="mf">0.000</span> <span class="p">{</span><span class="n">built</span><span class="o">-</span><span class="ow">in</span> <span class="n">method</span> <span class="n">_struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">}</span>
+        <span class="mi">1</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span>   <span class="mf">14.244</span>   <span class="mf">14.244</span> <span class="p">{</span><span class="n">built</span><span class="o">-</span><span class="ow">in</span> <span class="n">method</span> <span class="n">builtins</span><span class="o">.</span><span class="k">exec</span><span class="p">}</span>
+     <span class="mi">2233</span>    <span class="mf">0.001</span>    <span class="mf">0.000</span>    <span class="mf">0.001</span>    <span class="mf">0.000</span> <span class="p">{</span><span class="n">method</span> <span class="s1">&#39;append&#39;</span> <span class="n">of</span> <span class="s1">&#39;list&#39;</span> <span class="n">objects</span><span class="p">}</span>
+        <span class="mi">1</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span> <span class="p">{</span><span class="n">method</span> <span class="s1">&#39;disable&#39;</span> <span class="n">of</span> <span class="s1">&#39;_lsprof.Profiler&#39;</span> <span class="n">objects</span><span class="p">}</span>
+  <span class="mi">2503198</span>    <span class="mf">0.886</span>    <span class="mf">0.000</span>    <span class="mf">0.886</span>    <span class="mf">0.000</span> <span class="p">{</span><span class="n">method</span> <span class="s1">&#39;read&#39;</span> <span class="n">of</span> <span class="s1">&#39;_io.BufferedRandom&#39;</span> <span class="n">objects</span><span class="p">}</span>
+  <span class="mi">4999693</span>    <span class="mf">2.138</span>    <span class="mf">0.000</span>    <span class="mf">2.138</span>    <span class="mf">0.000</span> <span class="p">{</span><span class="n">method</span> <span class="s1">&#39;seek&#39;</span> <span class="n">of</span> <span class="s1">&#39;_io.BufferedRandom&#39;</span> <span class="n">objects</span><span class="p">}</span>
+</pre></div>
+
+
+<p>This looks a bit intimidating at first, but it is relatively easy to
+read. Each row is profiling data for a given function or method and the
+columns are explained succinctly in the
+<a href="https://docs.python.org/2/library/profile.html#instant-user-s-manual">documentation for cProfile</a>.
+In particular, <code>ncalls</code> is the total number of times a function was
+called and the rows are sorted by <code>cumtime</code> which is the cumulative
+amount of time our code spent in that function.</p>
+<p>Remember that we have about ~2000 zip codes in the database (2233,
+actually). We see above that we call <code>read</code> and <code>next_address</code> about
+that many times. This doesn't sound ideal, but it pales in comparison to
+some of the other functions listed there! We call <code>_seek</code> 5 million
+times and a few other functions (e.g. <code>_read_integer_and_rewind</code>) 2.5
+million times. The number of times a function is called may be
+misleading in terms of performance because if the function is super-fast
+it may not matter that it is called a lot. This is why the profiler
+sorts the data by <code>cumtime</code>. So, that leads to focus our attention on
+<code>_read_integer_and_rewind</code>. More precisely, we should identify what is
+causing that function to be called so many times.</p>
+<p>Look through the code that runs when we perform a <code>get</code> and try to
+identify what's happening before reading on.</p>
+<h2>Reasoning</h2>
+<p>Here's what happens: when we run a <code>get</code> the <code>Logical.get()</code> method runs
+and calls <code>Logical._read_keys()</code> and this method loops through all the addresses in
+the <code>FileStorage</code> instance used to store keys. To do that,
+<code>_read_keys()</code> calls <code>FileStorage.next_address()</code> repeatedly until it
+finds the last key. In turn, each time <code>next_address()</code> is called it
+moves the stream position to the beginning of the file and starts
+reading the length integers one by one until it is past the address it
+was given as an argument.</p>
+<p>This all means that when <code>next_address()</code> is called with <code>0</code> as the
+address it goes to the beginning and reads once. It is then called with
+that address. It rewinds to the beginning of the file and reads 2 times.
+The next time it rewinds to the beginning of the file and reads 3 times.</p>
+<p>For example, if the keys file looked something like this:</p>
+<div class="highlight"><pre><span></span><span class="n">address</span><span class="o">:</span> <span class="mi">0</span>  <span class="mi">1</span>  <span class="mi">2</span>  <span class="mi">3</span>  <span class="mi">4</span>  <span class="mi">5</span>  <span class="mi">6</span>  <span class="mi">7</span>  <span class="mi">8</span>  <span class="mi">9</span> <span class="mi">10</span> <span class="mi">11</span> <span class="mi">12</span> <span class="mi">13</span> <span class="mi">14</span> <span class="mi">15</span> <span class="mi">16</span> <span class="mi">17</span> <span class="mi">18</span> <span class="mi">19</span> <span class="mi">20</span> <span class="mi">21</span> <span class="mi">22</span>
+<span class="n">data</span><span class="o">:</span>    <span class="mi">7</span>  <span class="n">k</span>  <span class="n">e</span>  <span class="n">y</span>  <span class="n">f</span>  <span class="n">o</span>  <span class="n">o</span>  <span class="mi">8</span>  <span class="n">k</span>  <span class="n">e</span>  <span class="n">y</span>  <span class="n">f</span>  <span class="n">o</span>  <span class="n">o</span>  <span class="n">l</span>  <span class="mi">7</span>  <span class="n">k</span>  <span class="n">e</span>  <span class="n">y</span>  <span class="n">b</span>  <span class="n">a</span>  <span class="n">r</span>  <span class="mi">0</span>
+</pre></div>
+
+
+<p>The sequence of function calls in the loop in <code>_read_keys()</code> would go
+like this:</p>
+<div class="highlight"><pre><span></span><span class="n">next_address</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>  <span class="c1"># returns 7</span>
+    <span class="n">_seek_start</span><span class="p">()</span>
+    <span class="n">_read_integer_and_rewind</span><span class="p">()</span> <span class="c1"># returns 7</span>
+    <span class="c1"># 7 &gt; 0, return</span>
+<span class="n">next_address</span><span class="p">(</span><span class="mi">7</span><span class="p">)</span>  <span class="c1"># returns 15</span>
+    <span class="n">_seek_start</span><span class="p">()</span>
+    <span class="n">_read_integer_and_rewind</span><span class="p">()</span> <span class="c1"># returns 7</span>
+    <span class="c1"># 7 is not &gt; 7, advance by 7</span>
+    <span class="n">_read_integer_and_rewind</span><span class="p">()</span> <span class="c1"># returns 8</span>
+    <span class="c1"># 15 &gt; 7, return 15</span>
+<span class="n">next_address</span><span class="p">(</span><span class="mi">15</span><span class="p">)</span> <span class="c1"># returns 22</span>
+    <span class="n">_seek_start</span><span class="p">()</span>
+    <span class="n">_read_integer_and_rewind</span><span class="p">()</span> <span class="c1"># returns 7</span>
+    <span class="c1"># 7 is not &gt; 15, advance by 7</span>
+    <span class="n">_read_integer_and_rewind</span><span class="p">()</span> <span class="c1"># returns 8</span>
+    <span class="c1"># 15 is not &gt; 15, advance by 8</span>
+    <span class="n">_read_integer_and_rewind</span><span class="p">()</span> <span class="c1"># returns 7</span>
+    <span class="c1"># 22 &gt; 15, return 22</span>
+    <span class="n">_read_integer_and_rewind</span><span class="p">()</span> <span class="c1"># returns 0</span>
+
+<span class="n">next_address</span><span class="p">(</span><span class="mi">22</span><span class="p">)</span> <span class="c1"># returns None</span>
+    <span class="n">_seek_start</span><span class="p">()</span>
+    <span class="n">_read_integer_and_rewind</span><span class="p">()</span> <span class="c1"># returns 7</span>
+    <span class="c1"># 7 is not &gt; 22, advance by 7</span>
+    <span class="n">_read_integer_and_rewind</span><span class="p">()</span> <span class="c1"># returns 8</span>
+    <span class="c1"># 15 is not &gt; 15, advance by 8</span>
+    <span class="n">_read_integer_and_rewind</span><span class="p">()</span> <span class="c1"># returns 7</span>
+    <span class="c1"># 22 is not &gt; 22, advance by 7</span>
+    <span class="n">_read_integer_and_rewind</span><span class="p">()</span> <span class="c1"># returns 0</span>
+    <span class="c1"># 22 == 22, return None</span>
+</pre></div>
+
+
+<p>To read 3 keys we have called <code>_read_integer_and_rewind()</code> 10 times! And
+the pattern is that to read N keys we call <code>_read_integer_and_rewind()</code>
+1 + 2 + 3 + ... + N times which is (N<sup>2</sup> + N) / 2. In CS lingo,
+<code>_read_integer_and_rewind()</code> is called O(N<sup>2</sup>) times.</p>
+<p>This is consistent with what we found in the profiler: with N=2233, we
+expect to call <code>_read_integer_and_rewind()</code>
+<code>(2233&lt;sup&gt;2&lt;/sup&gt; + 2233) /2 = 2494261 ~= 2.5 million</code> times just from
+<code>_read_keys()</code>.</p>
+<p>Since the other methods that are called many times are ones that
+<code>_read_integer_and_rewind()</code> uses, it is most likely we have found our
+culprit.</p>
+<h2>A potential fix</h2>
+<p>Why does <code>next_address()</code> do so many calls to
+<code>_read_integer_and_rewind()</code>? Each time, it rewinds to the very
+beginning of the file and start moving from there. Why doesn't it just
+start at the address it is given and move to the next place?</p>
+<p>The reason is that it is written defensively. It does that to make sure
+it returns a valid result even when the argument it is passed is an
+address in the middle of a piece of data. Using the same example as
+before, suppose our file looked like so:</p>
+<div class="highlight"><pre><span></span><span class="n">address</span><span class="o">:</span> <span class="mi">0</span>  <span class="mi">1</span>  <span class="mi">2</span>  <span class="mi">3</span>  <span class="mi">4</span>  <span class="mi">5</span>  <span class="mi">6</span>  <span class="mi">7</span>  <span class="mi">8</span>  <span class="mi">9</span> <span class="mi">10</span> <span class="mi">11</span> <span class="mi">12</span> <span class="mi">13</span> <span class="mi">14</span> <span class="mi">15</span> <span class="mi">16</span> <span class="mi">17</span> <span class="mi">18</span> <span class="mi">19</span> <span class="mi">20</span> <span class="mi">21</span> <span class="mi">22</span>
+<span class="n">data</span><span class="o">:</span>    <span class="mi">7</span>  <span class="n">k</span>  <span class="n">e</span>  <span class="n">y</span>  <span class="n">f</span>  <span class="n">o</span>  <span class="n">o</span>  <span class="mi">8</span>  <span class="n">k</span>  <span class="n">e</span>  <span class="n">y</span>  <span class="n">f</span>  <span class="n">o</span>  <span class="n">o</span>  <span class="n">l</span>  <span class="mi">7</span>  <span class="n">k</span>  <span class="n">e</span>  <span class="n">y</span>  <span class="n">b</span>  <span class="n">a</span>  <span class="n">r</span>  <span class="mi">0</span>
+</pre></div>
+
+
+<p><code>next_address()</code> will work correctly even if we call it with <code>10</code> as an
+argument. Rewinds to the beginning, moves forward by the right amount
+each time until it is past 10, and returns <code>15</code>. Furthermore, without
+doing extra work, there is no other way to avoid rewinding to the
+beginning. Besides hopping from the beginning, <code>FileStorage</code> has no way
+of knowing that the data at address 10 starts at address 7 and is of
+length 8.</p>
+<p>However, the code for <code>_read_keys</code> never calls <code>next_address</code> like that,
+it starts with address 0 and it always calls <code>next_address</code> with
+something it returned. Secondly, <code>_read_keys</code> is the only method that
+uses <code>next_address</code>. So, we could make <code>next_address</code> assume it will
+always be called with a "good" address, in which case it can just jump
+once to find the next address.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/3d84ace63cf59722afecb125e97e1060adcd97ac">3d84ace</a>
+in branch <code>read-keys-perf</code> implements this change.</p>
+<p>If you checkout that branch and do a <code>get</code> on the DB with NY state zip
+codes, you'll see it that it is pretty quick. The time it took used to
+be ~10s and now it is ~0.5s. Not only that, but profiling it looks like
+so:</p>
+<div class="highlight"><pre><span></span><span class="n">In</span> <span class="p">[</span><span class="mi">3</span><span class="p">]:</span> <span class="n">cProfile</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s1">&#39;db.get(&quot;10003&quot;)&#39;</span><span class="p">)</span>
+         <span class="mi">67023</span> <span class="n">function</span> <span class="n">calls</span> <span class="ow">in</span> <span class="mf">0.059</span> <span class="n">seconds</span>
+
+   <span class="n">Ordered</span> <span class="n">by</span><span class="p">:</span> <span class="n">standard</span> <span class="n">name</span>
+
+   <span class="n">ncalls</span>  <span class="n">tottime</span>  <span class="n">percall</span>  <span class="n">cumtime</span>  <span class="n">percall</span> <span class="n">filename</span><span class="p">:</span><span class="n">lineno</span><span class="p">(</span><span class="n">function</span><span class="p">)</span>
+        <span class="mi">1</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span>    <span class="mf">0.059</span>    <span class="mf">0.059</span> <span class="o">&lt;</span><span class="n">string</span><span class="o">&gt;</span><span class="p">:</span><span class="mi">1</span><span class="p">(</span><span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span><span class="p">)</span>
+     <span class="mi">4467</span>    <span class="mf">0.006</span>    <span class="mf">0.000</span>    <span class="mf">0.023</span>    <span class="mf">0.000</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">102</span><span class="p">(</span><span class="n">_read_integer_and_rewind</span><span class="p">)</span>
+     <span class="mi">2235</span>    <span class="mf">0.004</span>    <span class="mf">0.000</span>    <span class="mf">0.014</span>    <span class="mf">0.000</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">137</span><span class="p">(</span><span class="n">read</span><span class="p">)</span>
+     <span class="mi">2234</span>    <span class="mf">0.006</span>    <span class="mf">0.000</span>    <span class="mf">0.034</span>    <span class="mf">0.000</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">171</span><span class="p">(</span><span class="n">next_address</span><span class="p">)</span>
+        <span class="mi">1</span>    <span class="mf">0.004</span>    <span class="mf">0.004</span>    <span class="mf">0.058</span>    <span class="mf">0.058</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">196</span><span class="p">(</span><span class="n">_read_keys</span><span class="p">)</span>
+        <span class="mi">1</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span>    <span class="mf">0.058</span>    <span class="mf">0.058</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">217</span><span class="p">(</span><span class="n">get</span><span class="p">)</span>
+        <span class="mi">1</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span>    <span class="mf">0.059</span>    <span class="mf">0.059</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">250</span><span class="p">(</span><span class="n">get</span><span class="p">)</span>
+    <span class="mi">11169</span>    <span class="mf">0.006</span>    <span class="mf">0.000</span>    <span class="mf">0.013</span>    <span class="mf">0.000</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">33</span><span class="p">(</span><span class="n">_seek</span><span class="p">)</span>
+     <span class="mi">8936</span>    <span class="mf">0.004</span>    <span class="mf">0.000</span>    <span class="mf">0.009</span>    <span class="mf">0.000</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">57</span><span class="p">(</span><span class="n">_read</span><span class="p">)</span>
+     <span class="mi">6702</span>    <span class="mf">0.008</span>    <span class="mf">0.000</span>    <span class="mf">0.017</span>    <span class="mf">0.000</span> <span class="n">scratchdb</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">92</span><span class="p">(</span><span class="n">_read_integer</span><span class="p">)</span>
+     <span class="mi">2234</span>    <span class="mf">0.005</span>    <span class="mf">0.000</span>    <span class="mf">0.005</span>    <span class="mf">0.000</span> <span class="p">{</span><span class="n">built</span><span class="o">-</span><span class="ow">in</span> <span class="n">method</span> <span class="n">_pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">}</span>
+     <span class="mi">6702</span>    <span class="mf">0.003</span>    <span class="mf">0.000</span>    <span class="mf">0.003</span>    <span class="mf">0.000</span> <span class="p">{</span><span class="n">built</span><span class="o">-</span><span class="ow">in</span> <span class="n">method</span> <span class="n">_struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">}</span>
+        <span class="mi">1</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span>    <span class="mf">0.059</span>    <span class="mf">0.059</span> <span class="p">{</span><span class="n">built</span><span class="o">-</span><span class="ow">in</span> <span class="n">method</span> <span class="n">builtins</span><span class="o">.</span><span class="k">exec</span><span class="p">}</span>
+     <span class="mi">2233</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span> <span class="p">{</span><span class="n">method</span> <span class="s1">&#39;append&#39;</span> <span class="n">of</span> <span class="s1">&#39;list&#39;</span> <span class="n">objects</span><span class="p">}</span>
+        <span class="mi">1</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span>    <span class="mf">0.000</span> <span class="p">{</span><span class="n">method</span> <span class="s1">&#39;disable&#39;</span> <span class="n">of</span> <span class="s1">&#39;_lsprof.Profiler&#39;</span> <span class="n">objects</span><span class="p">}</span>
+     <span class="mi">8936</span>    <span class="mf">0.005</span>    <span class="mf">0.000</span>    <span class="mf">0.005</span>    <span class="mf">0.000</span> <span class="p">{</span><span class="n">method</span> <span class="s1">&#39;read&#39;</span> <span class="n">of</span> <span class="s1">&#39;_io.BufferedRandom&#39;</span> <span class="n">objects</span><span class="p">}</span>
+    <span class="mi">11169</span>    <span class="mf">0.007</span>    <span class="mf">0.000</span>    <span class="mf">0.007</span>    <span class="mf">0.000</span> <span class="p">{</span><span class="n">method</span> <span class="s1">&#39;seek&#39;</span> <span class="n">of</span> <span class="s1">&#39;_io.BufferedRandom&#39;</span> <span class="n">objects</span><span class="p">}</span>
+</pre></div>
+
+
+<p>Much better. We aren't calling anything millions of times anymore.</p>
+<p>We are still calling methods O(N) times which is not great. We will
+address this in later sections.</p>
+<h2>Proper abstractions</h2>
+<p>Should we merge this branch onto master and call this issue resolved for
+now?</p>
+<p>No, we shouldn't.</p>
+<p>Even though it improves the performance, this fix makes the abstractions
+worse. We had already identified that <code>FileStorage.next_address()</code> was
+introduced as a hack to work around limitations of the logical layer.
+This fix makes that worse: before this change <code>next_address()</code> was maybe
+a reasonable method for <code>FileStorage</code>, but now we've built-in
+assumptions based on how it is used by the logical layer and gotten away
+with it because that is the only thing that calls <code>next_address</code>.</p>
+<p>Note that <code>next_address()</code> is not an unreasonable thing for
+<code>FileStorage</code> to have in its API, even with the assumptions it now
+makes. However, we should only add to an API for good reasons. When a
+component is meant to be used by third parties as a library a good
+reason is "someone will likely want this". When the component is a part
+of a system we're writing, the bar is a bit higher: we should only have
+what's absolutely necessary given that the other components are
+implemented well. In our case, when we were designing the system, we did
+not see the need for <code>next_address()</code> because we separated the
+responsibilities like so: physical layer reads and appends, logical
+layer does book-keeping. <code>next_address()</code> is part of the book-keeping.
+So, our abstractions or our design (or both) are a bit off.</p>
+<p>In the real world, you may need to apply band-aids like this one because
+there is no time to properly fix problems. This happens all the time and
+it adds technical debt to the code.</p>
+<p>Since we know the code has other flaws, before trying to fix this
+particular problem, let's take inventory of what's wrong and design the
+fixes accordingly.</p>
+    </article>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                    </ul>
+<p>This tutorial is written and maintained by <a href="https://rz.github.io">Rodrigo Guzman</a>.</p>
+<p>
+I monitor the comments on the <a href="https://github.com/scratchcode/scratchdb/commits/master">commits in the repo</a>. That's the best place for questions or comments about the code.
+  If the question or comment is about a particular line or section of the code, try to put it inline.
+</p>
+<p>
+  If you think a private conversation it is more appropriate please email me at <a href="mailto:rodguze@gmail.com">rodguze@gmail.com</a>.
+  You can also reach out to me on twitter <a href="https://twitter.com/rodguze">@rodguze</a>.
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="https://scratchcode.github.io/databases/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="https://scratchcode.github.io/databases/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="https://scratchcode.github.io/databases/theme/js/clean-blog.min.js"></script>
+
+</body>
+
+</html>
