@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>Flaws to fix</title>
+
+            <link href="https://scratchcode.github.io/databases/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title=" Full Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="https://scratchcode.github.io/databases/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="https://scratchcode.github.io/databases/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="https://scratchcode.github.io/databases/theme/css/code_blocks/github_jekyll.css" rel="stylesheet">
+
+            <!-- CSS specified by the user -->
+            <link href="https://scratchcode.github.io/databases/css/overrides.css" rel="stylesheet">
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="">
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="https://scratchcode.github.io/databases/"></a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-color: black">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>Flaws to fix</h1>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <article>
+        <h1>The Gist</h1>
+<p>3 issues from <code>debt.txt</code> stand out, the ones having to do with the
+logical layer. Namely:</p>
+<div class="highlight"><pre><span></span>- data format / implementation of logical layer requires requires reading all
+  keys to memory and/or exposing extra methods in FileStorage next_address()
+- 2-file design makes it cumbersome for the client to document what files
+  will be created given a database name
+- get operation is very slow
+</pre></div>
+
+
+<p>To address all 3 we will change the implementation of <code>Logical</code> to use
+an immutable linked-list and add one feature to <code>FileStorage</code>: the
+ability to store a mutable address at the beginning of the file to keep
+track of the head of the linked list.</p>
+<h1>Detailed explanation</h1>
+<p>We've been keeping track of flaws in the code in <code>debt.txt</code>. As of commit
+<a href="https://github.com/scratchcode/scratchdb/blob/1517644f0b995dfb298f5d5ad7a556a120882242/debt.txt">151176</a>
+this is what we have:</p>
+<div class="highlight"><pre><span></span>- tests use temp files
+- FileStorage and LogicalTest assert on private attirbutes
+- serialization is coupled to the logical layer
+- LogicalTest.test_set() and test_pop() use a very fragile approach
+- data format / implementation of logical layer requires requires reading all
+  keys to memory and/or exposing extra methods in FileStorage next_address()
+- code repetition in tests.py: delete_files()
+- structure of QueryProcessor.execute() makes it difficult to unit test
+  the various pieces of functionality it needs.
+- spec for QueryProcessor.execute() prevents it from throwing exceptions
+  when errors occur.
+- 2-file design makes it cumbersome for the client to document what files
+  will be created given a database name
+- no tests for client
+- get operation is very slow
+</pre></div>
+
+
+<p>Being that in this tutorial we are more interested in databases, let's
+ignore the flaws with the tests for now.</p>
+<p>There are 3 flaws that seem related:</p>
+<div class="highlight"><pre><span></span>- data format / implementation of logical layer requires requires reading all
+  keys to memory and/or exposing extra methods in FileStorage next_address()
+- 2-file design makes it cumbersome for the client to document what files
+  will be created given a database name
+- get operation is very slow
+</pre></div>
+
+
+<p>Indeed, they are related. All 3 of them are problems with the logical
+layer.</p>
+<p>What would we need to change in our logical layer to improve the
+situation?</p>
+<p>The first thing to note is that we store keys without any structure. We
+store them as tuples <code>(key, address of value)</code>. But there is no reason
+why we can't store them with more structure. More precisely, we could
+have keys related to each other as to help with the work.</p>
+<p>For example, if we knew what <code>next_address()</code> would return after we
+store a key tuple, we could store that in the tuple. If we did that,
+when we read the tuple back from the file we wouldn't need to call
+<code>next_address()</code> at all because we'd know the address of the next key
+tuple.</p>
+<p>The way the code is structured right now does not allow us to do that.
+But, let's pretend that we could do it. Would it help with our flaws?</p>
+<p>It would! Whenever we read a key we have the address of the next key, so
+we wouldn't need to read in all the keys each time. Not only that, but
+if we know that address, it wouldn't matter where in the file the key
+data is -- we know how to find it. We could store keys and values in the
+same file without worrying about how they are mixed up and start using a
+single file. Lastly, this would make calling <code>next_address()</code>
+unnecessary and we could get rid of it, which would also get rid of our
+performance problem.</p>
+<p>So, if we come up with such a scheme, or more precisely, with such a
+<em>data structure</em>, we fix all 3 of our flaws.</p>
+<p>The simplest data structure that would do the trick is called a
+<a href="https://en.wikipedia.org/wiki/Linked_list">linked list</a>. Don't worry
+too much if it is not 100% clear how it would solve the problems, but it
+should at least seem promising-enough to try it out.</p>
+<h2>Re-designing the logical layer to use a linked list</h2>
+<p>Let's start by declaring that our logical layer will use only 1 file.
+We'll embrace that as a design constraint.</p>
+<p>How do we use a linked list for the keys?</p>
+<p>Let's start with this: we'll store the address of the "next key" in our
+key tuple, so, they'll go from <code>(key, value address)</code> to <code>(key, value
+address, next key address)</code>. That won't be enough, but let's see how far
+it gets us by following what happens in a simple example.</p>
+<p>Suppose we did 3 operations: <code>set key1 val1</code> followed by <code>set key2
+val2</code>, <code>set key3 val3</code>.</p>
+<p>When we do the first one, there is only one key in the database, and
+this is both the head and the tail of the linked list. So, it's tuple
+would look something like <code>(key1, &lt;address of val1&gt;, None)</code>.</p>
+<p>When we do the second set the key tuple would look like <code>(key2,
+&lt;address of val2&gt;, &lt;address of key1&gt;)</code>.</p>
+<p>And when we do the third set, the key tuple would look like <code>(key3,
+&lt;address of val3, &lt;address of key2&gt;)</code>.</p>
+<p>The only problem is that this assumes we know or can find out the
+address of <code>key1</code> when we insert <code>key2</code> and the address of <code>key2</code> when
+we insert <code>key3</code>. As we have it right now, we have no way of knowing
+those addresses, but if we keep track of one more piece of information
+it will all work out. All we need to do is to also keep track of the
+address of the head of the linked list.</p>
+<p>It would go like this:</p>
+<p>When <code>set key1 val1</code> happens we'd store this tuple <code>(key1, &lt;address of
+val1&gt;, None)</code> and use the fact that <code>FileStorage.append()</code> returns the
+address of the data it just appended to start keeping track of the
+address of the head of the linked list. Let's say, for simplicity,
+that this address was <code>0</code>. So, somewhere we'd be keeping track <code>head:
+0</code>.</p>
+<p>When <code>set key2 val2</code> happens we'd look up what the value of <code>head</code> is
+and use that as the key address since it is the address of <code>key1</code> i.e.
+the tuple would look like <code>(key2, &lt;address of val2&gt;, 0)</code>. When we write
+that, we'd get the address of that tuple and we'd keep track of that,
+for example <code>head: 8</code>.</p>
+<p>When <code>set key3 val3</code> happens we'd look up the value of <code>head</code>, which is
+now <code>8</code> (the address of <code>key2</code>) and append <code>(key, &lt;address of val3, 8)</code>
+into the file. <code>append()</code> would return the address of that tuple and
+we'd update the head: <code>head: 8</code>.</p>
+<p>After all this our linked list looks like <code>key3 -&gt; key2 -&gt; key1 -&gt;
+None</code>. The important thing we've gained are that the data now has
+useful structure, and the keys don't need to be right next to each other
+in the file.</p>
+<p>But, we've added one small complication: we need to keep track of the
+head.</p>
+<p>There are a few approaches we could take.</p>
+<p>1) Since <code>FileStorage</code> does not allow changing data (only appends), we
+could modify it to allow a "special sector" where it does allow changing
+the data. We only need one integer (an address) to be mutable.  So, we
+could declare that the very first <code>INTEGER_LENGTH</code> bytes in the file are
+reserved for the address of the head of the list.</p>
+<p>2) We could append the address of the head to the file each time we
+add a new key.</p>
+<p>Both of this approaches have advantages and disadvantages.</p>
+<p>1) would require that mix the concerns of the logical and physical
+layers. <code>FileStorage</code> would have to support this special
+piece of functionality to make the job of the logical layer easier.
+However, it is simple and straight-forward to deal with.</p>
+<p>At first glance, 2) appears to have the advantage that of keeping
+concerns separated and our abstractions clean. However, when <code>Logical</code>
+is initialized it would need to know the address of the head, which
+would be the last piece of data in the file. Since, <code>FileStorage</code> does
+not know anything about the data in question, it can't do something like
+seeking to the end and rewinding by <code>INTEGER_LENGTH</code> to return the last
+value, it would have to traverse the entire file. This may be a
+significant amount of time if there is a lot of data. Not only that, but
+our abstractions would suffer anyway because we'd need to add a method
+to <code>FileStorage</code> to read the last value in the file.</p>
+<p>2) is a cleaner abstraction than 1) because reading the last value from
+the file is a reasonable thing to add to <code>FileStorage</code>, while 1)
+requires that we change it's behavior and the file format quite a bit
+for the sake of logical layer.</p>
+<p>2) has the advantage that we never lose any information, all the values
+head ever took are somewhere in the file along with everything else.
+With 1) we'd only know the latest one.</p>
+<p>There are a few other advantages and disadvantages to the two
+approaches, but those are the main ones. It is very common to encounter
+tradeoffs of this sort when writing software.</p>
+<p>We could, in principle do both 1) and 2), the current head is stored
+in the mutable sector of the file and we also store all the versions at
+the end of the file. While this may be desirable for many reasons, we'll
+limit ourselves to one or the other, for simplicity.</p>
+<p>Let's decide on using 1) and guaranteeing that everything else is
+immutable.</p>
+    </article>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                    </ul>
+<p>This tutorial is written and maintained by <a href="https://rz.github.io">Rodrigo Guzman</a>.</p>
+<p>
+I monitor the comments on the <a href="https://github.com/scratchcode/scratchdb/commits/master">commits in the repo</a>. That's the best place for questions or comments about the code.
+  If the question or comment is about a particular line or section of the code, try to put it inline.
+</p>
+<p>
+  If you think a private conversation it is more appropriate please email me at <a href="mailto:rodguze@gmail.com">rodguze@gmail.com</a>.
+  You can also reach out to me on twitter <a href="https://twitter.com/rodguze">@rodguze</a>.
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="https://scratchcode.github.io/databases/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="https://scratchcode.github.io/databases/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="https://scratchcode.github.io/databases/theme/js/clean-blog.min.js"></script>
+
+</body>
+
+</html>

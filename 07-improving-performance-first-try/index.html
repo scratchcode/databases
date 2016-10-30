@@ -93,7 +93,7 @@ of the file in case address points to the middle of some piece of data
 data). Since <code>FileStorage.next_address()</code> is only used by
 <code>Logical.read_keys()</code> in a loop that starts at address 0, it is safe for
 <code>next_address()</code> to assume its <code>address</code> argument is valid.</p>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/3d84ace63cf59722afecb125e97e1060adcd97ac">3d84ace</a>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/9aa75b3c176fcf5b33db1e069982ccb6ae5c51e7">9aa75b3</a>
 in branch <code>read-keys-perf</code> implements this change.</p>
 <p>With this, <code>read_keys</code> does O(n) file seeks and the performance of
 <code>get</code> improves drastically, from ~10s to ~0.5s.</p>
@@ -265,7 +265,7 @@ something it returned. Secondly, <code>_read_keys</code> is the only method that
 uses <code>next_address</code>. So, we could make <code>next_address</code> assume it will
 always be called with a "good" address, in which case it can just jump
 once to find the next address.</p>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/3d84ace63cf59722afecb125e97e1060adcd97ac">3d84ace</a>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/9aa75b3c176fcf5b33db1e069982ccb6ae5c51e7">9aa75b3</a>
 in branch <code>read-keys-perf</code> implements this change.</p>
 <p>If you checkout that branch and do a <code>get</code> on the DB with NY state zip
 codes, you'll see it that it is pretty quick. The time it took used to
@@ -303,7 +303,7 @@ address this in later sections.</p>
 <h2>Proper abstractions</h2>
 <p>Should we merge this branch onto master and call this issue resolved for
 now?</p>
-<p>No, we shouldn't.</p>
+<p>Let's hold off on it.</p>
 <p>Even though it improves the performance, this fix makes the abstractions
 worse. We had already identified that <code>FileStorage.next_address()</code> was
 introduced as a hack to work around limitations of the logical layer.
