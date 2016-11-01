@@ -112,7 +112,7 @@ these, the tests do. It is reasonable to add this functionality to the
 API of <code>FileStorage</code>. Our testing strategy has not changed, and so the
 tests for the logical layer have the same problems as the tests for the
 physical layer.</p>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/f1e4eedd3f8481caf09c0e1406960488b10c533">f1e4eed</a>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/043471e6e8fa783130285160a77de86a5f72dd5e">043471e</a>
 implements the insert operation (which is really just appending). Notice
 that, as promised, the code for <code>set()</code> and <code>pop()</code> is the same, with
 the exception of the <code>for_deletion</code> flag. This flag is not strictly
@@ -122,6 +122,11 @@ inserted for deletion. Whenever <code>value</code> is <code>None</code> we know 
 deleting. Having the <code>for_deletion</code> flag makes the code a bit more
 readable and makes changing the special value we use to represent a
 deleted key easier if we decide to do so later.</p>
+<p>As we have it right now, when handling a pop, we don't check whether the
+key exists. This coupled to our implementation of pop as a special case
+of insert means that whenever a non-existent key is popped we add it to
+the keys file. This doesn't affect our logic, since we add it as a
+deleted key, but it is not desirable. We will fix it later.</p>
 <p>Another thing to note is that the call to the serialization function
 <code>pickle.dumps()</code> is buried in the guts of the <code>_insert()</code> method. An
 analogous thing will happen with the de-serialization function
@@ -134,7 +139,7 @@ serialization. This is a very typical trade-off. Often, making code
 flexible requires indirection. The coupling between the <code>Logical</code> layer
 and serialization manifests itself in the tests also: the tests need to
 serialize in the same way that <code>Logical</code> does.</p>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/0495925a2b2d0b4b07f971cc6beadbb9737354fd">0495925</a>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/d03e41f887e98c229b853c86e9bd207c18e5cadf">d03e41f</a>
 implements <code>get()</code>. This commit looks suspiciously long! It adds the
 code for <code>get()</code> and also a helper method <code>_read_keys()</code> that reads all
 the keys from file. On top of that, it adds a method to the API of
@@ -146,7 +151,7 @@ is also missing a way to capture which key is the last key. To get
 around these issues, the <code>Logical</code> layer relies on the details of the
 data format and the capabilities of <code>FileStorage</code>. This is bad. The
 concerns of the layers are mixed up. We will fix this later.</p>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/d51dee5895dd7bfd012c0d5abf2acfb535423069">d51dee5</a>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/c2627c819fa751ee20a750e1f698928b94083c26">c2627c8</a>
 adds a comprehensive test of the functionality of the database.</p>
     </article>
             </div>

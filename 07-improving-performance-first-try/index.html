@@ -265,7 +265,7 @@ something it returned. Secondly, <code>_read_keys</code> is the only method that
 uses <code>next_address</code>. So, we could make <code>next_address</code> assume it will
 always be called with a "good" address, in which case it can just jump
 once to find the next address.</p>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/9aa75b3c176fcf5b33db1e069982ccb6ae5c51e7">9aa75b3</a>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/d0e91c149b25f0813f77a2b75f4a15b674b2ded2">d0e91c1</a>
 in branch <code>read-keys-perf</code> implements this change.</p>
 <p>If you checkout that branch and do a <code>get</code> on the DB with NY state zip
 codes, you'll see it that it is pretty quick. The time it took used to

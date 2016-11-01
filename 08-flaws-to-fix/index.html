@@ -86,7 +86,8 @@
         <h1>The Gist</h1>
 <p>3 issues from <code>debt.txt</code> stand out, the ones having to do with the
 logical layer. Namely:</p>
-<div class="highlight"><pre><span></span>- data format / implementation of logical layer requires requires reading all
+<div class="highlight"><pre><span></span>- popping a non-existent key adds that key to the keys file
+- data format / implementation of logical layer requires requires reading all
   keys to memory and/or exposing extra methods in FileStorage next_address()
 - 2-file design makes it cumbersome for the client to document what files
   will be created given a database name
@@ -94,17 +95,18 @@ logical layer. Namely:</p>
 </pre></div>
 
 
-<p>To address all 3 we will change the implementation of <code>Logical</code> to use
+<p>To address all of them we will change the implementation of <code>Logical</code> to use
 an immutable linked-list and add one feature to <code>FileStorage</code>: the
 ability to store a mutable address at the beginning of the file to keep
 track of the head of the linked list.</p>
 <h1>Detailed explanation</h1>
 <p>We've been keeping track of flaws in the code in <code>debt.txt</code>. As of commit
-<a href="https://github.com/scratchcode/scratchdb/blob/1517644f0b995dfb298f5d5ad7a556a120882242/debt.txt">151176</a>
+<a href="https://github.com/scratchcode/scratchdb/blob/f784dae92e07431c26b4eaa38c28ef81dffd6087/debt.txt">f784dae</a>
 this is what we have:</p>
 <div class="highlight"><pre><span></span>- tests use temp files
 - FileStorage and LogicalTest assert on private attirbutes
 - serialization is coupled to the logical layer
+- popping a non-existent key adds that key to the keys file
 - LogicalTest.test_set() and test_pop() use a very fragile approach
 - data format / implementation of logical layer requires requires reading all
   keys to memory and/or exposing extra methods in FileStorage next_address()
@@ -122,8 +124,9 @@ this is what we have:</p>
 
 <p>Being that in this tutorial we are more interested in databases, let's
 ignore the flaws with the tests for now.</p>
-<p>There are 3 flaws that seem related:</p>
-<div class="highlight"><pre><span></span>- data format / implementation of logical layer requires requires reading all
+<p>There are 4 flaws that seem related:</p>
+<div class="highlight"><pre><span></span>- popping a non-existent key adds that key to the keys file
+- data format / implementation of logical layer requires requires reading all
   keys to memory and/or exposing extra methods in FileStorage next_address()
 - 2-file design makes it cumbersome for the client to document what files
   will be created given a database name
@@ -131,7 +134,7 @@ ignore the flaws with the tests for now.</p>
 </pre></div>
 
 
-<p>Indeed, they are related. All 3 of them are problems with the logical
+<p>Indeed, they are related. All of them are problems with the logical
 layer.</p>
 <p>What would we need to change in our logical layer to improve the
 situation?</p>
