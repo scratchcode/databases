@@ -84,10 +84,9 @@
             <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
     <article>
         <h1>The Gist</h1>
-<p>3 issues from <code>debt.txt</code> stand out, the ones having to do with the
-logical layer. Namely:</p>
+<p>4 issues from <code>debt.txt</code> stand out, the ones having to do with the logical layer. Namely:</p>
 <div class="highlight"><pre><span></span>- popping a non-existent key adds that key to the keys file
-- data format / implementation of logical layer requires requires reading all
+- data format / implementation of logical layer requires reading all
   keys to memory and/or exposing extra methods in FileStorage next_address()
 - 2-file design makes it cumbersome for the client to document what files
   will be created given a database name
@@ -95,10 +94,9 @@ logical layer. Namely:</p>
 </pre></div>
 
 
-<p>To address all of them we will change the implementation of <code>Logical</code> to use
-an immutable linked-list and add one feature to <code>FileStorage</code>: the
-ability to store a mutable address at the beginning of the file to keep
-track of the head of the linked list.</p>
+<p>To address all of them we will change the implementation of <code>Logical</code> to use an immutable
+linked-list and add one feature to <code>FileStorage</code>: the ability to store a mutable address at the
+beginning of the file to keep track of the head of the linked list.</p>
 <h1>Detailed explanation</h1>
 <p>We've been keeping track of flaws in the code in <code>debt.txt</code>. As of commit
 <a href="https://github.com/scratchcode/scratchdb/blob/f784dae92e07431c26b4eaa38c28ef81dffd6087/debt.txt">f784dae</a>
@@ -108,7 +106,7 @@ this is what we have:</p>
 - serialization is coupled to the logical layer
 - popping a non-existent key adds that key to the keys file
 - LogicalTest.test_set() and test_pop() use a very fragile approach
-- data format / implementation of logical layer requires requires reading all
+- data format / implementation of logical layer requires reading all
   keys to memory and/or exposing extra methods in FileStorage next_address()
 - code repetition in tests.py: delete_files()
 - structure of QueryProcessor.execute() makes it difficult to unit test
@@ -122,11 +120,11 @@ this is what we have:</p>
 </pre></div>
 
 
-<p>Being that in this tutorial we are more interested in databases, let's
-ignore the flaws with the tests for now.</p>
+<p>Being that in this tutorial we are more interested in databases, let's ignore the flaws with the
+tests for now.</p>
 <p>There are 4 flaws that seem related:</p>
 <div class="highlight"><pre><span></span>- popping a non-existent key adds that key to the keys file
-- data format / implementation of logical layer requires requires reading all
+- data format / implementation of logical layer requires reading all
   keys to memory and/or exposing extra methods in FileStorage next_address()
 - 2-file design makes it cumbersome for the client to document what files
   will be created given a database name
@@ -134,119 +132,231 @@ ignore the flaws with the tests for now.</p>
 </pre></div>
 
 
-<p>Indeed, they are related. All of them are problems with the logical
-layer.</p>
+<p>All of them are problems with the logical layer.</p>
 <p>What would we need to change in our logical layer to improve the
 situation?</p>
-<p>The first thing to note is that we store keys without any structure. We
-store them as tuples <code>(key, address of value)</code>. But there is no reason
-why we can't store them with more structure. More precisely, we could
-have keys related to each other as to help with the work.</p>
-<p>For example, if we knew what <code>next_address()</code> would return after we
-store a key tuple, we could store that in the tuple. If we did that,
-when we read the tuple back from the file we wouldn't need to call
-<code>next_address()</code> at all because we'd know the address of the next key
-tuple.</p>
-<p>The way the code is structured right now does not allow us to do that.
-But, let's pretend that we could do it. Would it help with our flaws?</p>
-<p>It would! Whenever we read a key we have the address of the next key, so
-we wouldn't need to read in all the keys each time. Not only that, but
-if we know that address, it wouldn't matter where in the file the key
-data is -- we know how to find it. We could store keys and values in the
-same file without worrying about how they are mixed up and start using a
-single file. Lastly, this would make calling <code>next_address()</code>
-unnecessary and we could get rid of it, which would also get rid of our
+<p>The first thing to note is that we store keys without any structure. We store them as tuples <code>(key,
+address of value)</code>. But there is no reason we can't store them with more structure. More precisely,
+we could have keys be related to each other so that the relationships help with the work.</p>
+<p>For example, if we knew what <code>next_address()</code> would return after we store a key tuple, we could
+store that in the tuple. If we did that, when we read the tuple back from the file we wouldn't need
+to call <code>next_address()</code> at all because we'd know the address of the next key.</p>
+<p>The way the code is structured right now does not allow us to do that.  But, let's pretend that we
+could do it. Would it help with our flaws?</p>
+<p>It would! Whenever we read a key we have the address of the next key, so we wouldn't need to read in
+all the keys each time. Not only that, but if we know that address, it wouldn't matter where in the
+file the key data is -- we know how to find it. We could store keys and values in the same file
+without worrying about how they are mixed up and start using a single file. Lastly, this would make
+calling <code>next_address()</code> unnecessary and we could get rid of it, which would also get rid of our
 performance problem.</p>
-<p>So, if we come up with such a scheme, or more precisely, with such a
-<em>data structure</em>, we fix all 3 of our flaws.</p>
-<p>The simplest data structure that would do the trick is called a
-<a href="https://en.wikipedia.org/wiki/Linked_list">linked list</a>. Don't worry
-too much if it is not 100% clear how it would solve the problems, but it
-should at least seem promising-enough to try it out.</p>
+<p>So, if we come up with such a scheme, or more precisely, with such a <em>data structure</em>, we fix 3 of
+our flaws. We can also do something about popping non-existent keys.</p>
+<p>The simplest data structure that would do the trick is called a <a href="https://en.wikipedia.org/wiki/Linked_list">linked
+list</a>. Don't worry too much if it is not 100% clear how
+it would solve the problems, but it should at least seem promising-enough to try it out.</p>
 <h2>Re-designing the logical layer to use a linked list</h2>
-<p>Let's start by declaring that our logical layer will use only 1 file.
-We'll embrace that as a design constraint.</p>
+<p>Let's start by declaring that our logical layer will use only 1 file.  We'll embrace that as a
+design constraint.</p>
+<p>The main implication of that is that keys and values will be mixed up in the file, so we better
+store them such that we can identify them later, and such that we don't have to read each object in
+the file to decide whether it is the key that we need.</p>
 <p>How do we use a linked list for the keys?</p>
-<p>Let's start with this: we'll store the address of the "next key" in our
-key tuple, so, they'll go from <code>(key, value address)</code> to <code>(key, value
-address, next key address)</code>. That won't be enough, but let's see how far
-it gets us by following what happens in a simple example.</p>
-<p>Suppose we did 3 operations: <code>set key1 val1</code> followed by <code>set key2
-val2</code>, <code>set key3 val3</code>.</p>
-<p>When we do the first one, there is only one key in the database, and
-this is both the head and the tail of the linked list. So, it's tuple
-would look something like <code>(key1, &lt;address of val1&gt;, None)</code>.</p>
-<p>When we do the second set the key tuple would look like <code>(key2,
-&lt;address of val2&gt;, &lt;address of key1&gt;)</code>.</p>
-<p>And when we do the third set, the key tuple would look like <code>(key3,
-&lt;address of val3, &lt;address of key2&gt;)</code>.</p>
-<p>The only problem is that this assumes we know or can find out the
-address of <code>key1</code> when we insert <code>key2</code> and the address of <code>key2</code> when
-we insert <code>key3</code>. As we have it right now, we have no way of knowing
-those addresses, but if we keep track of one more piece of information
-it will all work out. All we need to do is to also keep track of the
-address of the head of the linked list.</p>
-<p>It would go like this:</p>
-<p>When <code>set key1 val1</code> happens we'd store this tuple <code>(key1, &lt;address of
-val1&gt;, None)</code> and use the fact that <code>FileStorage.append()</code> returns the
-address of the data it just appended to start keeping track of the
-address of the head of the linked list. Let's say, for simplicity,
-that this address was <code>0</code>. So, somewhere we'd be keeping track <code>head:
-0</code>.</p>
-<p>When <code>set key2 val2</code> happens we'd look up what the value of <code>head</code> is
-and use that as the key address since it is the address of <code>key1</code> i.e.
-the tuple would look like <code>(key2, &lt;address of val2&gt;, 0)</code>. When we write
-that, we'd get the address of that tuple and we'd keep track of that,
-for example <code>head: 8</code>.</p>
-<p>When <code>set key3 val3</code> happens we'd look up the value of <code>head</code>, which is
-now <code>8</code> (the address of <code>key2</code>) and append <code>(key, &lt;address of val3, 8)</code>
-into the file. <code>append()</code> would return the address of that tuple and
-we'd update the head: <code>head: 8</code>.</p>
-<p>After all this our linked list looks like <code>key3 -&gt; key2 -&gt; key1 -&gt;
-None</code>. The important thing we've gained are that the data now has
-useful structure, and the keys don't need to be right next to each other
-in the file.</p>
-<p>But, we've added one small complication: we need to keep track of the
-head.</p>
-<p>There are a few approaches we could take.</p>
-<p>1) Since <code>FileStorage</code> does not allow changing data (only appends), we
-could modify it to allow a "special sector" where it does allow changing
-the data. We only need one integer (an address) to be mutable.  So, we
-could declare that the very first <code>INTEGER_LENGTH</code> bytes in the file are
-reserved for the address of the head of the list.</p>
-<p>2) We could append the address of the head to the file each time we
-add a new key.</p>
+<p>A linked list is a collection of nodes, each node corresponds to a key and has a pointer to the next
+node. That's what you need to make the data structure. Pointer is just a fancy name for the address
+of the next node. For the data structure to be useful, the node should also store whatever other
+information goes with a key. In our case, that is the address of the value.</p>
+<p>So, this means that our key tuples would become <code>(key, &lt;value&gt;, &lt;next node&gt;)</code>. For simplicity, here
+and in the rest of this section <code>&lt;thing&gt;</code> means the address of <code>thing</code>.</p>
+<p>Let's try an example to get a feel for how it would work. Don't worry too much about how to make
+everything happen, let's first understand what we want to have happen. Suppose we did 3 operations:</p>
+<div class="highlight"><pre><span></span>set k1 v1
+set k2 v2
+set k3 v3
+</pre></div>
+
+
+<p>After we do the first set, there is only one key in the database, and this is both the head and the
+tail of the linked list. So, it's tuple would look like <code>(k1, &lt;v1&gt;, None)</code> and our linked list would
+look like <code>[k1,v1] -&gt;</code>.</p>
+<p>After we do the second set the key tuple would look like <code>(k2, &lt;v2&gt;, None)</code>, the key tuple for
+<code>k1</code> would change to <code>(k1, &lt;v1&gt;, &lt;k2&gt;)</code> and our linked list would look like <code>[k1,v1] -&gt; [k2,v2] -&gt;</code>.</p>
+<p>And after we do the third set, the key tuple would look like <code>(k3, &lt;v3&gt;, None)</code>, and the other two
+tuples <code>(k1, &lt;v1&gt;, &lt;k2&gt;)</code>, <code>(k2, &lt;v2&gt;, &lt;k3&gt;)</code> and our linked list would look like <code>[k1,v1] -&gt;
+[k2,v2] -&gt; [k3,v3]-&gt;</code></p>
+<p>You may be wondering why we insert at the tail of the linked list instead of at the head. Both ways
+can work. Inserting at the head is much simpler than inserting at the tail if we don't have to worry
+about inserting duplicates.</p>
+<p>In our previous design we just went ahead and inserted the duplicates. We could do this now, but
+then we run into trouble when removing the key. Either we have to remove all the instances of it
+across the list or keep our previous approach of inserting with a special value to denote deletion.
+Again, if we keep our previous design, we'll keep the flaw that popping a non-existent key also
+inserts it as deleted. To fix that, we could check the list to see if the key is there before
+deleting it.</p>
+<p>The main point is that, one way or another, we'll have to check the whole list either before
+inserting or when removing.</p>
+<p>There is another consideration: our storage doesn't let us modify data, we can only append. If we
+insert at the head, then inserting is easy, we just append the new node. If we insert at the tail,
+then the last node's next pointer needs to change, but since the storage doesn't let us change it,
+we'd need to make another copy of it that points to the right next node. In turn, that would require
+that we change the second-to-last node, which again means we must make a copy of it. And so on. All
+the nodes would need to be copied.</p>
+<p>In order to decide how to handle all these issues, it will be good to separate the logical
+representation of the data from the physical one.</p>
+<p>The logical representation is what nodes and pointers we have in the list, while the physical one is
+what is actually in the file.</p>
+<p>Suppose we first insert 3 keys as above, then set <code>k2</code> to a new value and then pop it. Namely, we
+do:</p>
+<div class="highlight"><pre><span></span>set k1 v1
+set k2 v2
+set k3 v3
+set k2 n2
+pop k2
+</pre></div>
+
+
+<p>Let's examine what the logical representation of the data would be in each case without worrying
+about how to store that representation in the physical layer. Suppose we'll insert at the head in
+all cases.</p>
+<p>Remember, objects can be modified in our <em>logical</em> representation, while in the <em>physical</em> one they
+can't.</p>
+<p>If we modify to update, and remove to pop, we'd have:</p>
+<div class="highlight"><pre><span></span>operation    logical representation
+set k1 v1    [k1,v1] -&gt;
+set k2 v2    [k2,v2] -&gt; [k1,v1] -&gt;
+set k3 v3    [k3,v3] -&gt; [k2,v2] -&gt; [k1,v1] -&gt;
+set k2 n2    [k3,v3] -&gt; [k2,n2] -&gt; [k1,v1] -&gt;
+pop k2       [k3,v3] -&gt; [k1,v1] -&gt;
+</pre></div>
+
+
+<p>If we duplicate to update, and remove to pop, we'd have:</p>
+<div class="highlight"><pre><span></span>operation    logical representation
+set k1 v1    [k1,v1] -&gt;
+set k2 v2    [k2,v2] -&gt; [k1,v1] -&gt;
+set k3 v3    [k3,v3] -&gt; [k2,v2] -&gt; [k1,v1] -&gt;
+set k2 n2    [k2,n2] -&gt; [k3,v3] -&gt; [k2,v2] -&gt; [k1,v1] -&gt;
+pop k2       [k3,v3] -&gt; [k1,v1] -&gt;
+</pre></div>
+
+
+<p>Allowing duplicates, and using special value to pop, we'd have:</p>
+<div class="highlight"><pre><span></span>operation    logical representation
+set k1 v1    [k1,v1] -&gt;
+set k2 v2    [k2,v2] -&gt; [k1,v1] -&gt;
+set k3 v3    [k3,v3] -&gt; [k2,v2] -&gt; [k1,v1] -&gt;
+set k2 n2    [k2,n2] -&gt; [k3,v3] -&gt; [k2,v2] -&gt; [k1,v1] -&gt;
+pop k2       [k2,XX] -&gt; [k2,n2] -&gt; [k3,v3] -&gt; [k2,v2] -&gt; [k1,v1] -&gt;
+</pre></div>
+
+
+<p>Disallowing duplicates, and using special value to pop, we'd have:</p>
+<div class="highlight"><pre><span></span>operation    logical representation
+set k1 v1    [k1,v1] -&gt;
+set k2 v2    [k2,v2] -&gt; [k1,v1] -&gt;
+set k3 v3    [k3,v3] -&gt; [k2,v2] -&gt; [k1,v1] -&gt;
+set k2 n2    [k3,v3] -&gt; [k2,n2] -&gt; [k1,v1] -&gt;
+pop k2       [k3,v3] -&gt; [k2,XX] -&gt; [k1,v1] -&gt;
+</pre></div>
+
+
+<p>Notice how the first representation contains exactly what is in the database from the prespective of
+the user. And this is the main abstraction the logical layer provides. So, from an abstraction point
+of view, that's the logical representation that we should have. Furthermore, it is the <em>physical</em>
+layer that is append-only. Attempting to represent that behavior in the logical layer is mixing up
+the responsibilities of the layers. The logical layer is in charge of representing the data as the
+user would think of it.</p>
+<p>This doesn't help with the question of inserting at the head vs inserting at the tail because we
+aren't offering the user any notion of order. So, it can go either way. Just remember that to keep
+our desired logical representation, whenever we handle a <code>set</code>, we have to first check if we have a
+node with that key, in which case we modify that, and otherwise insert it.</p>
+<p>The logic goes like this: start at the head and check if the head has the key that's being set. If
+it does, modify the head. If not, move on to the next node and check. Again, if it does, modify. If
+not move on. If we get to the end of the list insert a new node. The logic is slightly simpler if we
+insert at the tail, but that is not too obvious until you write the code both ways, so take my word
+for it.</p>
+<h2>Linked lists in the physical layer</h2>
+<p>Now, let's think about what happens in the physical layer. The easy case is inserting new nodes: we
+just append those. Whenever we need to modify a node, however, we need to copy that node.  Since the
+pointer is part of the node, whenever a pointer needs to be modified we also need to copy the node
+in question. This means that when we update we have to make copies of all the nodes up to the node
+that was updated.</p>
+<p>In the above example, when we update <code>k2</code> we really create another copy of it with its new value. We
+then need to have the pointer of <code>k3</code> point to the new node, which means we need to modify <code>k3</code> i.e.
+make another copy of it, which means we'd need to copy the node pointing to <code>k3</code> if there was one.
+Long story short, we need to copy every node up until the node we are updating.</p>
+<p>All of this may make you wonder about why bother with immutability in the first place: just change
+what you need to change. For one, immutability makes it so that our database never loses
+information. But more importantly, even though right now it may not seem so, immutability is simpler
+overall because it is easier to reason about data that doesn't change.</p>
+<p>Imagine if we updated <code>k2</code> from <code>v2</code> to <code>longer value 2</code>. If the physical layer were mutable, we'd
+have to go find where the <code>v2</code> is stored and make room for the the new value by moving all the data
+after it, before writing it to the file. It is much easier to just append the new value.
+Immutability means we don't have to worry about things like some other program trying to read the
+value while we are making room and the like.</p>
+<p>Similarly, it will become more clear later on, when we use trees for our data structure, that
+immutability makes it much easier to reason about the data and its structure.</p>
+<p>After all the important things we've gained are that the data now has useful structure, the keys
+don't need to be right next to each other in the file (so we can use a single file for keys and
+values), and we can handle updating and popping without undesirable side-effects.</p>
+<p>But, we've added one small complication: we need to keep track of the head of the list.</p>
+<h2>Keeping track of the head</h2>
+<p>In the example above, we assumed we know or can find out the address of <code>k1</code> when we insert <code>k2</code>
+and the address of <code>k2</code> when we insert <code>k3</code>. As we have it right now, we have no way of knowing
+those addresses.</p>
+<p>To know those addresses we need to keep track of what address <code>FileStorage</code> returns each time we
+append a node.</p>
+<p>When <code>set k1 v1</code> happens we'd store the tuple <code>(k1, &lt;v1&gt;, None)</code> and use the fact that
+<code>FileStorage.append()</code> returns the address of the data to start keeping track of the address of the
+head of the linked list. Let's say, for simplicity, that this address was <code>0</code>. So, somewhere we'd be
+keeping track <code>head: 0</code>.</p>
+<p>When <code>set k2 v2</code> happens we'd look up what the value of <code>head</code> is and use that as the pointer since
+it is the address of the node for <code>k1</code> i.e.  the tuple would look like <code>(key2, &lt;v2&gt;, 0)</code>.  When we
+append that, we'd get the address of that tuple and we'd keep track of that, for example <code>head: 8</code>.</p>
+<p>When <code>set k3 v3</code> happens we'd look up the value of <code>head</code>, which is now <code>8</code> (the address of <code>k2</code>)
+and append <code>(k3, &lt;v3&gt;, 8)</code> into the file. <code>append()</code> would return the address of that tuple and we'd
+update the head: <code>head: 16</code>.</p>
+<p>We could just keep track of this in the instance of <code>Logical</code>, but remember that we need to be able
+to open an existing database, which means that we need to have stored the current head somewhere.</p>
+<p>There are a couple approaches we could take:</p>
+<p>1) Since <code>FileStorage</code> does not allow changing data (only appends), we could modify it to allow a
+"special sector" where it does allow changing the data. We only need one integer (an address) to be
+mutable.  So, we could declare that the very first <code>INTEGER_LENGTH</code> bytes in the file are reserved
+for the address of the head of the list.</p>
+<p>2) We could append the address of the head to the file each time we add a new key.</p>
 <p>Both of this approaches have advantages and disadvantages.</p>
-<p>1) would require that mix the concerns of the logical and physical
-layers. <code>FileStorage</code> would have to support this special
-piece of functionality to make the job of the logical layer easier.
+<p>1) would require that mix the concerns of the logical and physical layers a bit. <code>FileStorage</code> would
+have to support this special piece of functionality to make the job of the logical layer easier.
 However, it is simple and straight-forward to deal with.</p>
-<p>At first glance, 2) appears to have the advantage that of keeping
-concerns separated and our abstractions clean. However, when <code>Logical</code>
-is initialized it would need to know the address of the head, which
-would be the last piece of data in the file. Since, <code>FileStorage</code> does
-not know anything about the data in question, it can't do something like
-seeking to the end and rewinding by <code>INTEGER_LENGTH</code> to return the last
-value, it would have to traverse the entire file. This may be a
-significant amount of time if there is a lot of data. Not only that, but
-our abstractions would suffer anyway because we'd need to add a method
-to <code>FileStorage</code> to read the last value in the file.</p>
-<p>2) is a cleaner abstraction than 1) because reading the last value from
-the file is a reasonable thing to add to <code>FileStorage</code>, while 1)
-requires that we change it's behavior and the file format quite a bit
-for the sake of logical layer.</p>
-<p>2) has the advantage that we never lose any information, all the values
-head ever took are somewhere in the file along with everything else.
-With 1) we'd only know the latest one.</p>
-<p>There are a few other advantages and disadvantages to the two
-approaches, but those are the main ones. It is very common to encounter
-tradeoffs of this sort when writing software.</p>
-<p>We could, in principle do both 1) and 2), the current head is stored
-in the mutable sector of the file and we also store all the versions at
-the end of the file. While this may be desirable for many reasons, we'll
-limit ourselves to one or the other, for simplicity.</p>
-<p>Let's decide on using 1) and guaranteeing that everything else is
-immutable.</p>
+<p>At first glance, 2) appears to have the advantage that of keeping concerns separated and our
+abstractions clean. However, when <code>Logical</code> is initialized it would need to know the address of the
+head, which would be the last piece of data in the file. Since, <code>FileStorage</code> does not know anything
+about the data in question, it can't do something like seeking to the end and rewinding by
+<code>INTEGER_LENGTH</code> to return the last value, it would have to traverse the entire file. This may be a
+significant amount of time if there is a lot of data. Not only that, but our abstractions would
+suffer anyway because we'd need to add a method to <code>FileStorage</code> to read the last value in the file.</p>
+<p>2) is a cleaner abstraction than 1) because reading the last value from the file is a reasonable
+thing to add to <code>FileStorage</code>, while 1) requires that we change it's behavior and the file format
+quite a bit for the sake of logical layer.</p>
+<p>2) has the advantage that we never lose any information, all the values head ever took are somewhere
+in the file along with everything else. With 1) we'd only know the latest one.</p>
+<p>There are a few other advantages and disadvantages to the two approaches, but those are the main
+ones. It is very common to encounter tradeoffs of this sort when writing software.</p>
+<p>We could, in principle do both 1) and 2), the current head is stored in the mutable sector of the
+file and we also store all the versions at the end of the file. While this may be desirable for many
+reasons, we'll limit ourselves to one or the other, for simplicity.</p>
+<p>Let's decide on using 1) and guaranteeing that everything else is immutable.</p>
+<h2>A bit more about mutability vs immutability</h2>
+<p>When talking about the logical representation of the linked list I said we are allowed to modify it.
+How is the linked list then immutable? The answer is that its <em>physical</em> representation is
+immutable. Namely, once we store a node, the data at that address in the file will never change. We
+may make copies of some pieces of a node (e.g. copy the key, and the value, but change the pointer)
+and store those copies somewhere else, but we are never going to modify the nodes themselves after
+we've appended them. That's what I mean when I say immutable linked list.</p>
+<p>This <a href="http://stackoverflow.com/a/10045677/">stackoverflow answer</a> is a very good explanation of how
+immutable linked lists work.</p>
+<p>In the next section we'll implement a very simple in-memory storage class that uses an array and a
+simplified linked list to get a feel for how all this works. We'll then bring those ideas over into
+the logical and physical layers of ScratchDB.</p>
     </article>
             </div>
         </div>
