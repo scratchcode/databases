@@ -175,7 +175,7 @@ set k3 v3
 </pre></div>
 
 
-<p>After we do the first set, there is only one key in the database, and this is both the head and the
+<p>After we do the first set, there is only one key in the database, and it is both the head and the
 tail of the linked list. So, it's tuple would look like <code>(k1, &lt;v1&gt;, None)</code> and our linked list would
 look like <code>[k1,v1] -&gt;</code>.</p>
 <p>After we do the second set the key tuple would look like <code>(k2, &lt;v2&gt;, None)</code>, the key tuple for
@@ -295,7 +295,7 @@ Immutability means we don't have to worry about things like some other program t
 value while we are making room and the like.</p>
 <p>Similarly, it will become more clear later on, when we use trees for our data structure, that
 immutability makes it much easier to reason about the data and its structure.</p>
-<p>After all the important things we've gained are that the data now has useful structure, the keys
+<p>Doing all of this, we've gained a few important things: the data now has useful structure, the keys
 don't need to be right next to each other in the file (so we can use a single file for keys and
 values), and we can handle updating and popping without undesirable side-effects.</p>
 <p>But, we've added one small complication: we need to keep track of the head of the list.</p>
@@ -354,9 +354,9 @@ and store those copies somewhere else, but we are never going to modify the node
 we've appended them. That's what I mean when I say immutable linked list.</p>
 <p>This <a href="http://stackoverflow.com/a/10045677/">stackoverflow answer</a> is a very good explanation of how
 immutable linked lists work.</p>
-<p>In the next section we'll implement a very simple in-memory storage class that uses an array and a
-simplified linked list to get a feel for how all this works. We'll then bring those ideas over into
-the logical and physical layers of ScratchDB.</p>
+<p>In the next section we'll implement a very simple in-memory storage class and a simplified linked
+list to get a feel for how all this works. We'll then bring those ideas over into the logical and
+physical layers of ScratchDB.</p>
     </article>
             </div>
         </div>

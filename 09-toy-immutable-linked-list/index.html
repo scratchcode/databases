@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+        <title>Implementing a toy immutable linked list</title>
+
+            <link href="https://scratchcode.github.io/databases/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title=" Full Atom Feed" />
+        <!-- Bootstrap Core CSS -->
+        <link href="https://scratchcode.github.io/databases/theme/css/bootstrap.min.css" rel="stylesheet">
+
+        <!-- Custom CSS -->
+        <link href="https://scratchcode.github.io/databases/theme/css/clean-blog.min.css" rel="stylesheet">
+
+        <!-- Code highlight color scheme -->
+            <link href="https://scratchcode.github.io/databases/theme/css/code_blocks/github_jekyll.css" rel="stylesheet">
+
+            <!-- CSS specified by the user -->
+            <link href="https://scratchcode.github.io/databases/css/overrides.css" rel="stylesheet">
+
+        <!-- Custom Fonts -->
+        <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+        <link href='https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+        <link href='https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/css'>
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+                <meta property="og:locale" content="">
+		<meta property="og:site_name" content="">
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+        <div class="container-fluid">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header page-scroll">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="https://scratchcode.github.io/databases/"></a>
+            </div>
+
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+
+                </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Page Header -->
+        <header class="intro-header" style="background-color: black">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <div class="post-heading">
+                        <h1>Implementing a toy immutable linked list</h1>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+    <article>
+        <p>Before changing the logical layer to use an immutable linked list, let's implement one with less
+complexity. More specifically, here we'll do this: we'll write a very simple <code>MemoryStorage</code> class
+that mimics our <code>FileStorage</code> one, but uses a list instead of a file and which can also easily be
+printed and inspected. We'll then write a simplified version of the logical layer using a linked
+list.</p>
+<p>Doing this exercise will help clarify how to do it in the real logical layer.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commits/exp-linked-list">This branch</a>
+contains the relevant code in a file called <code>ll.py</code>. We won't actually merge this
+branch, we're using it to experiment. This is the only file that will change in this branch.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/7f825feeb50b0d53025bd58811c59f1e648fb523">7f825fe</a>
+sets up the <code>MemoryStorage</code> class we'll use to simulate the physical layer, with the API we want.
+Namely: <code>read()</code>, <code>append()</code>, <code>set_head_address()</code>, and <code>read_head_address()</code>. There's also a
+<code>show()</code> method which prints the contents of the storage with addresses, so that we can inspect it
+easily. This commit also sets up the basic structure of <code>LogicalLinkedList</code>. Play around with the
+<code>MemoryStorage</code> to get a feel for how it works.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/0e33efb885871c77bc35d3c59fa24be5e632f37f">0e33efb</a>
+adds two <a href="https://docs.python.org/3/library/collections.html#collections.namedtuple">namedtuples</a> to
+help in representing linked list nodes and values. A namedtuple is a thin wrapper around a python
+tuple so that they can have names and so that the data in the tuple can be accessed by name. For
+example, in our case, if we just used tuples we may be writing code like <code>next_address = node[2]</code> or
+<code>key, value_address, next_address = node</code>. Using a namedtuple for <code>Node</code> lets us also access the
+data as <code>node.next_address</code> or <code>node.key</code>. You can think of <code>namedtuple</code> as a quick way to generate
+a class whose <code>__init__</code> method just sets attributes on <code>self</code> for every argument it receives.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/a75bc6ea689718c4d487d156d28d2a79d2d2df14">a75bc6e</a>
+adds quite a bit of code and it is important to understand this code before moving forward: it
+implements the <code>set()</code> method by inserting into the linked list. The main idea is that when we do a
+<code>set</code> we know that the head is going to change, either because we insert new data at the head or
+because the new data will be inserted somewhere in the rest of the tail and the head will need to
+change to point to that data. The implementation of insertion into the linked list takes care of
+both the case of a duplicate and a new value by recursively trasversing through the list. Really,
+before moving forward play around by inserting some data and using the <code>show()</code> method of storage to
+see what happens.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/d22ea63137e9bdd8eff48aa9ba6a85b45214aafb">d22ea63</a>
+adds a <code>show()</code> method to <code>LogicalLinkedList</code> which shows the logical representation of the list
+and calls <code>show()</code> on the storage object. This makes it easy to inspect what happens after each
+operation. This commit also adds a driver to <code>ll.py</code> so that when we run <code>python ll.py</code> it performs
+some operations and calls <code>show()</code> after each one. Again, please get a feel for how everything is
+working before moving on. The previous commit is probably the trickiest thing you'll encounter in
+this whole tutorial.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/f78a35c98645d7c6fdc5d5d3b0f17e7971f62a27">f78a35c</a>
+implements the <code>get()</code> method and adds some sanity checks for it to the driver. The basic approach
+is to iterate through the list until we find the desired key and raise <code>KeyError</code> if we reach the
+end without finding the key. This method is a lot simpler than both <code>set()</code> and <code>pop()</code>.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/10f18efb48e5190a8f3863b22f2b6dd794046952">10f18ef</a>
+implements the <code>pop()</code> method by removing from the linked list. This method is analogous to <code>set()</code>
+and its helper method, <code>_ll_remove()</code> is analogous to <code>_ll_insert()</code>. Make sure you play around with
+this and understand how it works before moving forward. When you play around, you'll notice that
+when we <code>pop()</code> a non-existent key, we copy the whole list. Obviously, this is undesirable, and
+we'll fix it in the next commit. I only left it like that so that <code>pop()</code> is very similar to
+<code>set()</code>.</p>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/e2fbedc4a1356e65b7ceb9ed5c49aa9df0e78791">e2fbedc</a>
+fixes the problem with <code>pop()</code> copying the whole list when a non-existent key is popped. Since the
+<code>_ll_remove()</code> method works recursively, we need a way to stop the current and any "pending" (i.e.
+parents of recursive calls) calls to <code>_ll_remove()</code>. The easiest way to do that is to raise an
+exception that isn't caught in <code>_ll_remove()</code>. The exception is then be handled in <code>pop()</code> since per
+our spec popping a non-existent key returns <code>None</code> and doesn't raise a <code>KeyError</code>. However, raising
+a <code>KeyError</code> in that case would be reasonable, too.</p>
+<p>Please take the time to play around with and understand <code>ll.py</code> before moving on. In the next
+section we'll be implementing the same ideas in the real logical and physical layers of ScratchDB.</p>
+    </article>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                    <ul class="list-inline text-center">
+                    </ul>
+<p>This tutorial is written and maintained by <a href="https://rz.github.io">Rodrigo Guzman</a>.</p>
+<p>
+I monitor the comments on the <a href="https://github.com/scratchcode/scratchdb/commits/master">commits in the repo</a>. That's the best place for questions or comments about the code.
+  If the question or comment is about a particular line or section of the code, try to put it inline.
+</p>
+<p>
+  If you think a private conversation it is more appropriate please email me at <a href="mailto:rodguze@gmail.com">rodguze@gmail.com</a>.
+  You can also reach out to me on twitter <a href="https://twitter.com/rodguze">@rodguze</a>.
+</p>                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- jQuery -->
+    <script src="https://scratchcode.github.io/databases/theme/js/jquery.min.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="https://scratchcode.github.io/databases/theme/js/bootstrap.min.js"></script>
+
+        <!-- Custom Theme JavaScript -->
+        <script src="https://scratchcode.github.io/databases/theme/js/clean-blog.min.js"></script>
+
+</body>
+
+</html>
