@@ -83,7 +83,21 @@
         <div class="row">
             <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
     <article>
-        <p>Before changing the logical layer to use an immutable linked list, let's implement one with less
+        <h1>The gist</h1>
+<p>In this section we will create a simplified version of the physical layer to work in-memory only
+using an array (instead of a file). We'll then implement a simplified version of the logical layer
+using an immutable linked list.</p>
+<p>The commits are in <a href="https://github.com/scratchcode/scratchdb/commits/exp-linked-list">this branch</a>.</p>
+<p>We will not be merging this branch onto master, it exists only to play around with immutable linked
+lists in a setting with minimal complexity.</p>
+<p>While there is only ~140 lines of code for the <code>LogicalLinkedList</code> class, the recursive methods
+(<code>_ll_insert()</code> and <code>_ll_remove()</code>) are fairly tricky and grokking this code may take a while. The
+commits are explained in detail below, but the best way to understand all of this is to play around
+with it by calling methods and using the <code>show()</code> method to see how the logical representation and
+underlying storage change.</p>
+<p>In the next section we'll be bringing these ideas over to the logical layer in ScratchDB.</p>
+<h1>Detailed explanation</h1>
+<p>Before changing the logical layer to use an immutable linked list, let's implement one with less
 complexity. More specifically, here we'll do this: we'll write a very simple <code>MemoryStorage</code> class
 that mimics our <code>FileStorage</code> one, but uses a list instead of a file and which can also easily be
 printed and inspected. We'll then write a simplified version of the logical layer using a linked

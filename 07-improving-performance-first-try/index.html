@@ -93,7 +93,7 @@ of the file in case address points to the middle of some piece of data
 data). Since <code>FileStorage.next_address()</code> is only used by
 <code>Logical.read_keys()</code> in a loop that starts at address 0, it is safe for
 <code>next_address()</code> to assume its <code>address</code> argument is valid.</p>
-<p><a href="https://github.com/scratchcode/scratchdb/commit/9aa75b3c176fcf5b33db1e069982ccb6ae5c51e7">9aa75b3</a>
+<p><a href="https://github.com/scratchcode/scratchdb/commit/d0e91c149b25f0813f77a2b75f4a15b674b2ded2">d0e91c1</a>
 in branch <code>read-keys-perf</code> implements this change.</p>
 <p>With this, <code>read_keys</code> does O(n) file seeks and the performance of
 <code>get</code> improves drastically, from ~10s to ~0.5s.</p>
